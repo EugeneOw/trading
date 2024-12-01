@@ -1,3 +1,4 @@
+
 import ema
 import bot
 import math
@@ -5,6 +6,7 @@ import time
 import random
 import logging
 import telebot
+import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -13,6 +15,8 @@ import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
+matplotlib.use('Agg')
+
 
 class Main:
     states: list = [('Bullish', 'Uptrend'), ('Bullish', 'Sideways'), ('Bullish', 'Downtrend'),
@@ -55,7 +59,7 @@ class Sub(Main):
         self.alpha = alpha  # Learning rate: How much new information affect Q-Value
         self.gamma = gamma  # Discount rate: Determines importance of future rewards
         self.epsilon = epsilon
-        self.episodes = 5
+        self.episodes = 1
         self.decay = decay
         self.actions = ["Buy", "Sell", "Hold"]
         self.msgs = msgs
@@ -92,8 +96,9 @@ class Sub(Main):
                     self.q_table[state_index, action] = current_q_value + self.alpha * (td_target - current_q_value)
                 except Exception as e:
                     logging.error(f"Error processing next state at index {idx + 1}: {e} ")
-            logging.info(f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
-            tb.send_message(self.msgs.chat.id, f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
+            if self.calls is not None:
+                logging.info(f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
+                tb.send_message(self.msgs.chat.id, f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
             self.store_para(episode_reward)
             total_reward += episode_reward
         Sub.call += 1
@@ -112,10 +117,11 @@ class Sub(Main):
             else:
                 self.iter_data[key] = [value]
 
-    def disp_pplot(self):
+    def pplot(self):
         _pplot_df = pd.DataFrame(self.iter_data)
         sns.pairplot(_pplot_df)
-        return plt.show()
+        plt.savefig("/Users/eugen/Downloads/pair_plot.png")
+        return
 
     @staticmethod
     def define_state(row):
@@ -221,9 +227,9 @@ if __name__ == "__main__":
                              epsilon=result.x[2],
                              decay=result.x[3],
                              msgs=msg,
-                             calls=n_calls)
+                             calls=None)
             best_agent.train()
-            best_agent.disp_pplot()
+            best_agent.pplot()
 
         except Exception as e:
             logging.critical(f"Fatal error in training: {e}")
