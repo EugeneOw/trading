@@ -1,5 +1,6 @@
 
 import ema
+import sys
 import bot
 import math
 import time
@@ -11,6 +12,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from skopt import gp_minimize
+from datetime import datetime
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor
 
@@ -59,7 +61,7 @@ class Sub(Main):
         self.alpha = alpha  # Learning rate: How much new information affect Q-Value
         self.gamma = gamma  # Discount rate: Determines importance of future rewards
         self.epsilon = epsilon
-        self.episodes = 1
+        self.episodes = 20
         self.decay = decay
         self.actions = ["Buy", "Sell", "Hold"]
         self.msgs = msgs
@@ -96,7 +98,7 @@ class Sub(Main):
                     self.q_table[state_index, action] = current_q_value + self.alpha * (td_target - current_q_value)
                 except Exception as e:
                     logging.error(f"Error processing next state at index {idx + 1}: {e} ")
-            if self.calls is not None:
+            if self.calls is not type(int):
                 logging.info(f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
                 tb.send_message(self.msgs.chat.id, f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
             self.store_para(episode_reward)
@@ -120,6 +122,11 @@ class Sub(Main):
     def pplot(self):
         _pplot_df = pd.DataFrame(self.iter_data)
         sns.pairplot(_pplot_df)
+        current_time = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
+        title = f"Pair Plot - Created on {current_time}"
+        subtitle = f"Episodes: {self.episodes} - Calls made: {self.calls}"
+        plt.suptitle(title, y=0.98, fontsize=14)
+        plt.figtext(0.5, 0.95, subtitle, ha='center', fontsize=12, color='grey')
         plt.savefig("/Users/eugen/Downloads/pair_plot.png")
         return
 
@@ -184,17 +191,34 @@ class Sub(Main):
             raise
 
 
-api_key = bot.BOT().extract_api_key()
-if api_key:
-    tb = telebot.TeleBot(api_key)
-else:
-    logging.error("Failed to extract API key.")
-
 if __name__ == "__main__":
     def objective(params, msgs, n_calls):
         alpha, gamma, epsilon, decay = params
         agent = Sub(alpha=alpha, gamma=gamma, epsilon=epsilon, decay=decay, msgs=msgs, calls=n_calls)
         return -agent.train()
+
+    def send_image(message):
+        image_path = "/Users/eugen/Downloads/pair_plot.png"
+        try:
+            with open(image_path, 'rb') as photo:
+                tb.send_photo(message.chat.id, photo, caption="Pair plot")
+        except FileNotFoundError:
+            tb.send_message(message.chat_id, "Image file not found.")
+        except Exception as e:
+            tb.send_message(message.chat_id, f"Failed to send image: {e}")
+
+    try:
+        api_key = bot.BOT().extract_api_key()
+        if api_key:
+            tb = telebot.TeleBot(api_key)
+
+    except FileNotFoundError as e:
+        logging.error("Failed to extract API key")
+        sys.exit(1)
+
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        sys.exit(1)
 
     @tb.message_handler(commands=['start'])
     def main(message):
@@ -227,9 +251,10 @@ if __name__ == "__main__":
                              epsilon=result.x[2],
                              decay=result.x[3],
                              msgs=msg,
-                             calls=None)
+                             calls=str(n_calls))
             best_agent.train()
             best_agent.pplot()
+            send_image(msg)
 
         except Exception as e:
             logging.critical(f"Fatal error in training: {e}")
