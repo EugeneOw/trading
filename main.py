@@ -3,12 +3,11 @@ import random
 import numpy as np
 import math
 import time
-from skopt import BayesSearchCV, gp_minimize
+from skopt import gp_minimize
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
-
 
 class Main:
     states: list = [('Bullish', 'Uptrend'), ('Bullish', 'Sideways'), ('Bullish', 'Downtrend'),
@@ -22,7 +21,6 @@ class Main:
         self.df = self.init_data(self.file_path)
         if self.df is None or self.df.empty:
             raise ValueError("DataFrame is empty or could not be loaded")
-        self.q_table, self.state_to_index = self.init_para(self.states, self.actions)
         self.executor = ThreadPoolExecutor(max_workers=2)
 
     @classmethod
@@ -36,7 +34,7 @@ class Main:
 
     @classmethod
     def init_para(cls, states, actions):
-        new_table = np.zeros((len(states), len(actions)), dtype=int)
+        new_table = np.zeros((len(states), len(actions)))
         new_map = {i: i for i in range(len(states))}
         return new_table, new_map
 
@@ -44,19 +42,22 @@ class Main:
 class Sub(Main):
     def __init__(self, alpha, gamma, epsilon, decay):
         super().__init__()
+        self.q_table = None
+        self.state_to_index = None
         self.alpha = alpha  # Learning rate: How much new information affect Q-Value
         self.gamma = gamma  # Discount rate: Determines importance of future rewards
         self.epsilon = epsilon
-        self.episodes = 20
+        self.episodes = 1
         self.decay = decay
         self.actions = ["Buy", "Sell", "Hold"]
 
     def train(self):
+        self.q_table, self.state_to_index = self.init_para(self.states, self.actions)
         total_reward = 0
         for episode in range(self.episodes):
             self.epsilon = math.exp(-episode/(self.episodes/self.decay))
             episode_reward = 0
-            for idx in range(len(self.df) - 1):
+            for idx in range(len(self.df) - 810000):
                 future_state_index = self.executor.submit(self.next_row, idx)
                 try:
                     current_state = self.define_state(self.df.iloc[idx])
@@ -74,15 +75,14 @@ class Sub(Main):
                 episode_reward += reward
                 try:
                     next_state_index = future_state_index.result()
-                    self.q_table[state_index, action] = self.q_table[state_index, action] + self.alpha * \
-                        (reward + self.gamma * np.max(self.q_table[next_state_index]) - self.q_table[state_index, action])
+                    current_q_value = self.q_table[state_index, action]
+                    max_future_q = np.max(self.q_table[next_state_index])
+                    td_target = reward + self.gamma * max_future_q
+                    self.q_table[state_index, action] = current_q_value + self.alpha * (td_target - current_q_value)
                 except Exception as e:
                     logging.error(f"Error processing next state at index {idx + 1}: {e} ")
-
-            logging.info(f"\n=== Completed episode {episode + 1}/{self.episodes} ===")
+                #logging.info(f"Q-table: {self.q_table}")
             total_reward += episode_reward
-
-        logging.info(f"Final Q-table after training: \n{self.q_table}")
         return total_reward
 
     @staticmethod
@@ -153,12 +153,26 @@ if __name__ == "__main__":
         return -agent.train()
 
     start_time = time.time()
-    param_space: list = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
+    param_space: list = [
+        (0.01, 0.5),
+        (0.8, 0.99),
+        (0.1, 1),
+        (1, 10)
+    ]
+
     try:
         logging.info(f"Program initiated")
-        result = gp_minimize(objective, dimensions=param_space, n_calls=20, random_state=42)
-        logging.info(f"Best parameters: {result.x}")
-        logging.info(f"Best objective value: {result.fun}")
-        logging.info(f"Time taken: {time.time()-start_time:.4f}")
+        result = gp_minimize(
+            objective,
+            dimensions=param_space,
+            n_calls=10,
+            random_state=42)
+        logging.info(f"Best parameters \n==========")
+        logging.info(f"Best alpha: {result.x[0]}")
+        logging.info(f"Best gamma: {result.x[1]}")
+        logging.info(f"Best epsilon: {result.x[2]}")
+        logging.info(f"Best decay: {int(result.x[3])}")
+        logging.info(f"No. of iterations: {result.nit}")
+        logging.info(f"Time taken: {time.time()-start_time:.4f} seconds")
     except Exception as e:
         logging.critical(f"Fatal error in training: {e}")
