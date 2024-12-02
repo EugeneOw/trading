@@ -1,8 +1,5 @@
+import logging
 import pandas as pd
-
-#  ewm: Exponential weighted moving average (EWMA)
-#  span: Controls how much past data has influence in recent data points.
-#        Since span = 12, only past 12 data points has effect.
 
 
 class EMA:
@@ -11,12 +8,54 @@ class EMA:
         self.df = pd.read_csv(file)
 
     def ema(self):
-        self.df['Mid Price'] = (self.df['Ask'] + self.df['Bid']/2)
-        for period in self.periods:
-            self.df[f'EMA {period}'] = self.df['Mid Price'].ewm(span=period, adjust=False).mean()
-        return self.df
+        """
+        Performs EMA 12 & EMA 24 calculation.
+        :return: Returns an updated csv file with 2 new rows(EMA 12 and EMA 24).
+        :rtype: self.df: Dataframe
+        """
+        try:
+            self.df['Mid Price'] = (self.df['Ask'] + self.df['Bid']/2)
+            for period in self.periods:
+                self.df[f'EMA {period}'] = self.df['Mid Price'].ewm(span=period, adjust=False).mean()
+            return self.df
+        except AttributeError as e:
+            logging.error(f"Attribute error: {e}")
+            return None
+        except KeyError as e:
+            logging.error(f"Column not found: {e}")
+            return None
+        except ValueError as e:
+            logging.error(f"Value error during calculation: {e}")
+            return None
+        except TypeError as e:
+            logging.error(f"Type error in operation: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            return None
 
     def macd(self):
+        """
+        Performs Moving average convergence/divergence calculation
+        :return: Returns an updated csv file with 1 new row (MACD).
+        :rtype: self.df: Dataframe
+        """
         self.ema()
-        self.df[f'MACD'] = self.df['EMA 24'] - self.df['EMA 12']
-        return self.df
+        try:
+            self.df[f'MACD'] = self.df['EMA 24'] - self.df['EMA 12']
+            return self.df
+        except AttributeError as e:
+            logging.error(f"Attribute error: {e}")
+            return None
+        except KeyError as e:
+            logging.error(f"Column not found: {e}")
+            return None
+        except ValueError as e:
+            logging.error(f"Value error during calculation: {e}")
+            return None
+        except TypeError as e:
+            logging.error(f"Type error in operation: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            return None

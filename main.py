@@ -1,16 +1,17 @@
+import telebot
 
 import ema
-import sys
-import bot
 import math
-import time
 import random
 import logging
-import telebot
+from typing import Optional
+from telebot import TeleBot
 import matplotlib
 import numpy as np
 import pandas as pd
+import requests
 import seaborn as sns
+import api_key_extractor
 from skopt import gp_minimize
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -18,151 +19,186 @@ from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 matplotlib.use('Agg')
+iterated_parameters: dict = {}  # Store iterated parameters
+
+omitted_rows = 810001  # Default 1
+no_of_calls = 10  # n_calls
+no_of_episodes = 35  # episodes
+reward_hist: list = []  # Store iterated objective
+training_boundaries: list = [no_of_calls,
+                             no_of_episodes,]  # Stores training boundaries (no. of episodes, calls, etc.)
 
 
 class Main:
-    states: list = [('Bullish', 'Uptrend'), ('Bullish', 'Sideways'), ('Bullish', 'Downtrend'),
-                    ('Bearish', 'Uptrend'), ('Bearish', 'Sideways'), ('Bearish', 'Downtrend'),
-                    ('Neutral', 'Uptrend'), ('Neutral', 'Sideways'), ('Neutral', 'Downtrend')]
-
-    actions: list = ['Buy', 'Sell', 'Hold']
     file_path: str = '/Users/eugen/Documents/GitHub/trading/forex_data/dataset.csv'
 
     def __init__(self):
-        self.df = self.init_data(self.file_path)
-        if self.df is None or self.df.empty:
-            raise ValueError("DataFrame is empty or could not be loaded")
+        self.df = self.__init_data(self.file_path)
         self.executor = ThreadPoolExecutor(max_workers=2)
 
     @classmethod
-    def init_data(cls, file_path):
-        try:
-            df = ema.EMA(file_path).macd()
-            return df
-        except Exception as e:
-            logging.error(f"Error loading dataset. Error message {e}")
-            return None
+    def __init_data(cls, file_path):
+        """
+        Retrieves csv from 'file_path' and performs MACD calculation.
+        :param file_path: Contains directory of csv file
+        :type file_path: str
 
-    @classmethod
-    def init_para(cls, states, actions):
-        new_table = np.zeros((len(states), len(actions)))
-        new_map = {i: i for i in range(len(states))}
-        return new_table, new_map
+        :return: df: Returns an updated csv file with MACD, EMA 12 and EMA 24.
+        :rtype: df: Dataframe
+        """
+        try:
+            df = ema.EMA(file_path)
+            df = df.macd()
+            return df
+
+        except pd.errors.EmptyDataError:
+            logging.error("Empty file or no data to load.")
+        except pd.errors.ParserError:
+            logging.error("Parsing error in the dataset.")
+        except ValueError:
+            logging.error("Value error while processing file")
+        except KeyError as e:
+            logging.error(f"Column not found: {e}")
+        except PermissionError:
+            logging.error("Permission error.")
+        except FileNotFoundError:
+            logging.error("File not found.")
+        except OSError as e:
+            logging.error(f"OS error: {e}")
 
 
 class Sub(Main):
-    iter_param: dict = {}  # Store iterated parameters
-    iter_line: list = []  # Store iterated objective
+    states: list = [('Bullish', 'Uptrend'),
+                    ('Bullish', 'Sideways'),
+                    ('Bullish', 'Downtrend'),
+                    ('Bearish', 'Uptrend'),
+                    ('Bearish', 'Sideways'),
+                    ('Bearish', 'Downtrend'),
+                    ('Neutral', 'Uptrend'),
+                    ('Neutral', 'Sideways'),
+                    ('Neutral', 'Downtrend')]
+    current_actions: list = ['Buy', 'Sell', 'Hold']
+
     call = 1
 
-    def __init__(self, alpha, gamma, epsilon, decay, msgs, calls):
+    def __init__(self, params, message, n_calls):
         super().__init__()
         self.q_table = None
         self.state_to_index = None
-        self.alpha = alpha  # Learning rate: How much new information affect Q-Value
-        self.gamma = gamma  # Discount rate: Determines importance of future rewards
-        self.epsilon = epsilon
-        self.episodes = 35
-        self.decay = decay
-        self.actions = ["Buy", "Sell", "Hold"]
-        self.msgs = msgs
-        self.calls = calls
+
+        self.alpha = params[0]  # Learning rate: How much new information affect Q-Value
+        self.gamma = params[1]  # Discount rate: Determines importance of future rewards
+        self.epsilon = params[2]
+        self.decay = params[3]
+
+        self.episodes = training_boundaries[1]
+
+        self.current_actions = ["Buy", "Sell", "Hold"]
+        self.message = message.chat.id
+        self.n_calls = n_calls
 
     def train(self):
-        self.q_table, self.state_to_index = self.init_para(self.states, self.actions)
-        total_reward = 0
+        self.q_table, self.state_to_index = self.initialize_parameters(self.states, self.current_actions)
+
+        total_reward = 0  # Change to self. or
+
         for episode in range(self.episodes):
-            self.epsilon = math.exp(-episode/(self.episodes/self.decay))
+            self.epsilon = self.calculate_decay(episode)  # ! self.epsilon is over-wrote here
+            
             episode_reward = 0
-            for idx in range(len(self.df)-1):
 
-                future_state_index = self.executor.submit(self.next_row, idx)
-                try:
-                    current_state = self.define_state(self.df.iloc[idx])
-                    state_index = self.state_to_index[current_state]
-                except KeyError as e:
-                    logging.error(f"Error defining current state at index {idx}: {e}")
-                    continue
+            for _row_index in range(len(self.df)-omitted_rows):
+                # Submitting a function(self.next_row) to be executed asynchronously.
+                future_state_index = self.executor.submit(self.next_row, _row_index)
 
+                # Get the state of individual row.
+                content_row = self.df.iloc[_row_index]
+                current_state_index = self.define_state(content_row)
+                state_index = self.state_to_index[current_state_index]
+                
+                # Choosing current_action based on exploration rate (That decays exponentially)
+                # 1) Randomly choosing a current_action or
+                # 2) Selects best course of current_action based on Q-Table
                 if random.uniform(0, 1) < self.epsilon:
-                    action = random.choice(range(len(self.actions)))
+                    current_action = random.choice(range(len(self.current_actions)))
                 else:
-                    action = np.argmax(self.q_table[state_index])
+                    current_action = np.argmax(self.q_table[state_index])
+                current_action = self.current_actions[current_action]
 
-                reward = self.calc_reward(idx, action)
+                # Gets result of next row
+                next_row = future_state_index.result()
+
+                # Calculates reward and update q-table based on q-learning formula
+                reward = self.calculate_reward(content_row, next_row, current_action)
                 episode_reward += reward
-                try:
-                    next_state_index = future_state_index.result()
-                    current_q_value = self.q_table[state_index, action]
-                    max_future_q = np.max(self.q_table[next_state_index])
-                    td_target = reward + self.gamma * max_future_q
-                    self.q_table[state_index, action] = current_q_value + self.alpha * (td_target - current_q_value)
-                except Exception as e:
-                    logging.error(f"Error processing next state at index {idx + 1}: {e} ")
-            if self.calls is not type(int):
-                logging.info(f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
-                tb.send_message(self.msgs.chat.id, f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
-            self.store_para(episode_reward)
-            self.iter_line.append(episode_reward)
+                self.update_q_table(state_index, current_action, next_row, reward)
+
+            # Updates message through telegram bot
+            if self.n_calls is not type(int):
+                tb.send_message(self.message, f"Episode: {episode+1}/{self.episodes} "
+                                              f"\nCalls: {self.call}/{self.n_calls}")
+
+            self.store_parameters(episode_reward)
+
+            # Shows how objective changes as parameters and episode change
+            reward_hist.append(episode_reward)
             total_reward += episode_reward
         Sub.call += 1
+        tb.send_message(self.message, f"{self.q_table}")
         return total_reward
 
-    def lplot(self, n_calls):
-        plt.figure(figsize=(10, 6))
-        print(self.iter_line)
-        plt.plot(range(1, (self.episodes*n_calls) + 1), self.iter_line, marker='o', color='b', linestyle='-', label='Objective')
-        plt.title('Episode vs Objective Value')
-        plt.xlabel('Episode')
-        plt.ylabel('Objective Value')
-        plt.grid(True)
-        plt.legend()
-        plt.savefig("/Users/eugen/Downloads/line_plot.png")
-        return
+    @classmethod
+    def initialize_parameters(cls, states, current_actions):
+        """
+        Creates new table (Q-table) and map to store possible states
+        :param states: Contains all the possible states based on MACD and EMA 12/24
+        :type states: List(tuple(string, string)
 
-    def store_para(self, episode_reward):
-        for key, value in {
-            'alpha': self.alpha,
-            'gamma': self.gamma,
-            'epsilon': self.epsilon,
-            'decay': int(self.decay),
-            'objective': float(episode_reward)
-        }.items():
-            if key in self.iter_param:
-                self.iter_param[key].append(value)
-            else:
-                self.iter_param[key] = [value]
+        :param current_actions: Contains all the possible current_actions (buy, sell, hold) based on MACD and EMA 12/24
+        :type current_actions: List(string)
 
-    def pplot(self):
-        _pplot_df = pd.DataFrame(self.iter_param)
-        sns.pairplot(_pplot_df)
-        current_time = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
-        title = f"Pair Plot - Created on {current_time}"
-        subtitle = f"Episodes: {self.episodes} - Calls made: {self.calls}"
-        plt.suptitle(title, y=0.98, fontsize=14)
-        plt.figtext(0.5, 0.95, subtitle, ha='center', fontsize=12, color='grey')
-        plt.savefig("/Users/eugen/Downloads/pair_plot.png")
-        return
+        :return: new_table: Table of size len(state) by len(current_actions)
+        :rtype: new_table: NumPy array
 
-    @property
-    def display(self):
-        return logging.info(self.q_table)
+        :return: new_map: Map of all possible states and their respective numerical index
+        :rtype: new_map: dict[int, int]
+        """
+        new_table = np.zeros((len(states), len(current_actions)))
+        new_map = {i: i for i in range(len(states))}
+        return new_table, new_map
+
+    def calculate_decay(self, episode) -> float:
+        """
+        Calculates decay due to exponential decay
+        :param episode: Episode number of learning
+        :return: decay value
+        :rtype: float
+        """
+        return math.exp(-episode / (self.episodes / self.decay))
 
     @staticmethod
-    def define_state(row):
-        try:
-            state_map = {
-                ("Bullish", "Uptrend"): 0,
-                ("Bullish", "Downtrend"): 1,
-                ("Bullish", "Sideways"): 2,
-                ("Bearish", "Uptrend"): 3,
-                ("Bearish", "Downtrend"): 4,
-                ("Bearish", "Sideways"): 5,
-                ("Neutral", "Uptrend"): 6,
-                ("Neutral", "Downtrend"): 7,
-                ("Neutral", "Sideways"): 8,
-            }
+    def define_state(row) -> int:
+        """
+        Defines the state of the row that appears
+        :param row: Returns content of that individual row
+        :type row: Pandas series
+        
+        :return: Returns index of whatever state is defined
+        :rtype: int
+        """
+        state_map = {
+            ("Bullish", "Uptrend"): 0,
+            ("Bullish", "Downtrend"): 1,
+            ("Bullish", "Sideways"): 2,
+            ("Bearish", "Uptrend"): 3,
+            ("Bearish", "Downtrend"): 4,
+            ("Bearish", "Sideways"): 5,
+            ("Neutral", "Uptrend"): 6,
+            ("Neutral", "Downtrend"): 7,
+            ("Neutral", "Sideways"): 8,
+        }
 
+        try:
             macd = row['MACD']
             ema_12 = row['EMA 12']
             ema_24 = row['EMA 24']
@@ -180,44 +216,167 @@ class Sub(Main):
                 trend_state = 'Downtrend'
             else:
                 trend_state = 'Sideways'
+                
             return state_map[(macd_state, trend_state)]
-        except KeyError as e:
-            logging.error(f"Error defining state: {e}")
-            raise
 
-    def calc_reward(self, idx, action):
-        try:
-            current_price = self.df.iloc[idx]['Mid Price']
-            next_price = self.df.iloc[idx + 1]['Mid Price']
-            action = self.actions[action]
-            if action == "Buy":
-                return next_price - current_price
-            elif action == "Sell":
-                return current_price - next_price  #
-            else:
-                return -0.1
-        except KeyError as e:
-            logging.error(f"Error calculating reward at index {idx}: {e}")
-            return -1
-
-    def next_row(self, idx):
-        try:
-            next_state = self.define_state(self.df.iloc[idx + 1])
-            return self.state_to_index[next_state]
+        except KeyError:
+            logging.error("Row doesn't exists")
+        except IndexError:
+            logging.error("Attempting to access index that is out of bonds.")
         except Exception as e:
-            logging.error(f"Error defining next state at index {idx}: {e}")
+            logging.error(f"Unexpected error: {e}")
             raise
+
+    def next_row(self, _row_index):
+        try:
+            next_row = self.df.iloc[_row_index + 1]
+            next_state = self.define_state(next_row)
+            return self.state_to_index[next_state]
+        except (IndexError, KeyError) as e:
+            logging.error(f"Error at index {_row_index}: {str(e)}")
+            raise  # Re-raise the exception for further handling or logging
+        except Exception as e:
+            logging.error(f"Unexpected error at index {_row_index}: {str(e)}")
+            raise
+
+    @staticmethod
+    def calculate_reward(content_row, next_row, current_action):
+        """
+        Calculates the reward for selecting correct or wrong decisions.
+
+        :param content_row: Contains initial mid-price
+        :type content_row: double
+
+        :param next_row: Contains afterward mid-price
+        :type next_row: double
+
+        :param current_action: Buy, sell or hold (Penalty 0.1)
+        :type current_action: string
+
+        :return: return positive or negative profit
+        :rtype: float
+        """
+        current_price = content_row['Mid Price']
+        next_price = next_row['Mid Price']
+
+        if current_price is None or next_price is None:
+            raise KeyError("Missing 'Mid Price' in on of the rows.")
+
+        if not isinstance(current_action, str):
+            raise TypeError(f"'current_action' should be a string, got {type(current_action)}")
+
+        if current_action == "Buy":
+            return next_price - current_price
+        elif current_action == "Sell":
+            return current_price - next_price
+        else:
+            return -0.1
+
+    def update_q_table(self, state_index, current_action, next_row, reward):
+        """
+        Updates q_table based on q-learning update rule
+        :param state_index: Current state index
+        :param current_action: Current choice of current_action
+        :param next_row: Next state row
+        :param reward: Reward
+        """
+        try:
+            current_q_value = self.q_table[state_index, current_action]
+            max_future_q = np.max(self.q_table[next_row])
+            td_target = reward + self.gamma * max_future_q
+            self.q_table[state_index, current_action] = current_q_value + self.alpha * (td_target - current_q_value)
+        except IndexError as e:
+            logging.error(f"IndexError at state index={state_index}, current_action={current_action}: {e}")
+        except ValueError as e:
+            logging.error(f"ValueError with reward, gamma, or q_table values: {e}")
+        except TypeError as e:
+            logging.error(f"TypeError: {e}")
+        except AttributeError as e:
+            logging.error(f"AttributeError: {e}")
+        except OverflowError as e:
+            logging.error(f"OverflowError during Q-table update: {e}")
+
+    def store_parameters(self, episode_reward):
+        """
+        Stores tested parameters and result (episode_reward) into a dictionary to plot later-on
+        :param episode_reward:
+        :return:
+        """
+        for key, value in {
+            'alpha': self.alpha,
+            'gamma': self.gamma,
+            'epsilon': self.epsilon,
+            'decay': int(self.decay),
+            'objective': float(episode_reward)
+        }.items():
+            try:
+                if key in iterated_parameters:
+                    iterated_parameters[key].append(value)
+                else:
+                    iterated_parameters[key] = [value]
+            except AttributeError as e:
+                logging.error(f"AttributeError: {e} - Ensure self.iterated_parameters is initialized as a dictionary.")
+            except TypeError as e:
+                logging.error(f"TypeError: {e} - Ensure self.iterated_parameters[key] is a list before calling append.")
+            except Exception as e:
+                logging.error(f"Unexpected error occurred while updating iterated_parameters for {key}: {e}")
 
 
 if __name__ == "__main__":
-    def objective(params, msgs, n_calls):
-        #alpha, gamma, epsilon, decay = params
-        agent = Sub(alpha=0.5, gamma=0.99, epsilon=0.1, decay=10, msgs=msgs, calls=n_calls)
-        return -agent.train()
+    def connect_to_telebot(key):
+        """
+        Attempts to connect to telegram bot.
 
-    def send_image(message):
-        _graph_name_lst: list = ["pair_plot", "line_plot"]
-        for path in _graph_name_lst:
+        :param key: String containing api key
+        :type key: obj: str
+
+        :return: Synchronous class for telegram bot.
+        :rtype: key: class:
+        """
+
+        try:
+            return telebot.TeleBot(key)
+        except ValueError:
+            logging.error("Invalid token")
+        except telebot.apihelper.ApiException:
+            logging.error("Invalid token or connection error")
+        except requests.exceptions.ConnectionError as e:
+            logging.error("Network error:", e)
+
+    def objective(params, message, n_calls):
+        """
+        :param params: Contains all the parameters (i.e. alpha, ...)
+        :param message: Contain telegram message handler
+        :param n_calls: Contain number of calls to perform
+        :type n_calls: str or int
+
+        :return: reward: We return a negative value as minimization is preferred rather than maximization
+        """
+        agent = Sub(params,
+                    message=message,
+                    n_calls=n_calls)
+        reward = agent.train()
+        return -reward
+
+    def update_tele(result, message):
+        """
+        Sends best parameters and images (pair-plot & line-graph) to telegram
+        """
+        graph_name_lst: list = ["pair_plot", "line_plot"]
+        message_map: dict = {
+            "alpha": result.x[0],
+            "gamma": result.x[1],
+            "epsilon": result.x[2],
+            "decay": int(result.x[3])
+        }
+
+        for key, value in message_map.items():
+            tb.send_message(message.chat_id, f"Best {key} : {value}")
+
+        create_line_plot()
+        create_pair_plot()
+
+        for path in graph_name_lst:
             image_path = f"/Users/eugen/Downloads/{path}.png"
             try:
                 with open(image_path, 'rb') as photo:
@@ -227,57 +386,49 @@ if __name__ == "__main__":
             except Exception as e:
                 tb.send_message(message.chat_id, f"Failed to send image: {e}")
 
-    try:
-        api_key = bot.BOT().extract_api_key()
-        if api_key:
-            tb = telebot.TeleBot(api_key)
+    def create_line_plot():
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, (no_of_episodes*no_of_calls) + 1),
+                 reward_hist,
+                 marker='o',
+                 color='b',
+                 linestyle='-',
+                 label='Objective')
+        plt.title('Episode vs Objective Value')
+        plt.xlabel('Episode')
+        plt.ylabel('Objective Value')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig("/Users/eugen/Downloads/line_plot.png")
+        return
 
-    except FileNotFoundError as e:
-        logging.error("Failed to extract API key")
-        sys.exit(1)
+    def create_pair_plot():
+        pplot_df = pd.DataFrame(iterated_parameters)
+        sns.pairplot(pplot_df)
+        current_time = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
+        title = f"Pair Plot - Created on {current_time}"
+        subtitle = f"Episodes: {no_of_episodes} - Calls made: {no_of_calls}"
+        plt.suptitle(title, y=0.98, fontsize=14)
+        plt.figtext(0.5, 0.95, subtitle, ha='center', fontsize=12, color='grey')
+        plt.savefig("/Users/eugen/Downloads/pair_plot.png")
+        return
 
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        sys.exit(1)
+    api_key = api_key_extractor.APIKeyExtractor()
+    api_key = api_key.extract_api_key()
 
-    @tb.message_handler(commands=['start'])
-    def main(message):
-        msg = message
-        start_time = time.time()
-        param_space: list = [
-            (0.01, 0.5),
-            (0.8, 0.99),
-            (0.1, 1),
-            (1, 10)
-        ]
-        n_calls = 10
-        try:
-            logging.info(f"Program initiated")
-            result = gp_minimize(
-                lambda params: objective(params, msg, n_calls),
-                dimensions=param_space,
-                n_calls=n_calls,
-                random_state=42)
-
-            logging.info(f"Best parameters \n==========")
-            logging.info(f"Best alpha: {result.x[0]}")
-            logging.info(f"Best gamma: {result.x[1]}")
-            logging.info(f"Best epsilon: {result.x[2]}")
-            logging.info(f"Best decay: {int(result.x[3])}")
-            logging.info(f"Time taken: {time.time()-start_time:.4f} seconds")
-
-            best_agent = Sub(alpha=result.x[0],
-                             gamma=result.x[1],
-                             epsilon=result.x[2],
-                             decay=result.x[3],
-                             msgs=msg,
-                             calls=str(n_calls))
-            #best_agent.train()
-            best_agent.lplot(n_calls)
-            best_agent.pplot()
-            send_image(msg)
-
-        except Exception as e:
-            logging.critical(f"Fatal error in training: {e}")
-
-    tb.infinity_polling()
+    tb = connect_to_telebot(api_key)
+    if isinstance(tb, TeleBot):
+        @tb.message_handler(commands=['start'])
+        def main(message):
+            n_calls = training_boundaries[0]
+            param_space: list[tuple] = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
+            try:
+                result = gp_minimize(
+                    lambda params: objective(params, message, n_calls),
+                    dimensions=param_space,
+                    n_calls=n_calls,
+                    random_state=42)
+                update_tele(result, message)
+            except Exception as e:
+                logging.critical(f"Fatal error in training: {e}")
+        tb.infinity_polling()
