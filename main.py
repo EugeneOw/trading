@@ -51,7 +51,8 @@ class Main:
 
 
 class Sub(Main):
-    iter_data = {}
+    iter_param: dict = {}  # Store iterated parameters
+    iter_line: list = []  # Store iterated objective
     call = 1
 
     def __init__(self, alpha, gamma, epsilon, decay, msgs, calls):
@@ -61,7 +62,7 @@ class Sub(Main):
         self.alpha = alpha  # Learning rate: How much new information affect Q-Value
         self.gamma = gamma  # Discount rate: Determines importance of future rewards
         self.epsilon = epsilon
-        self.episodes = 20
+        self.episodes = 35
         self.decay = decay
         self.actions = ["Buy", "Sell", "Hold"]
         self.msgs = msgs
@@ -73,7 +74,7 @@ class Sub(Main):
         for episode in range(self.episodes):
             self.epsilon = math.exp(-episode/(self.episodes/self.decay))
             episode_reward = 0
-            for idx in range(len(self.df)-810001):
+            for idx in range(len(self.df)-1):
 
                 future_state_index = self.executor.submit(self.next_row, idx)
                 try:
@@ -102,9 +103,22 @@ class Sub(Main):
                 logging.info(f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
                 tb.send_message(self.msgs.chat.id, f"Episode: {episode+1}/{self.episodes} \nCalls: {self.call}/{self.calls}")
             self.store_para(episode_reward)
+            self.iter_line.append(episode_reward)
             total_reward += episode_reward
         Sub.call += 1
         return total_reward
+
+    def lplot(self, n_calls):
+        plt.figure(figsize=(10, 6))
+        print(self.iter_line)
+        plt.plot(range(1, (self.episodes*n_calls) + 1), self.iter_line, marker='o', color='b', linestyle='-', label='Objective')
+        plt.title('Episode vs Objective Value')
+        plt.xlabel('Episode')
+        plt.ylabel('Objective Value')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig("/Users/eugen/Downloads/line_plot.png")
+        return
 
     def store_para(self, episode_reward):
         for key, value in {
@@ -114,13 +128,13 @@ class Sub(Main):
             'decay': int(self.decay),
             'objective': float(episode_reward)
         }.items():
-            if key in self.iter_data:
-                self.iter_data[key].append(value)
+            if key in self.iter_param:
+                self.iter_param[key].append(value)
             else:
-                self.iter_data[key] = [value]
+                self.iter_param[key] = [value]
 
     def pplot(self):
-        _pplot_df = pd.DataFrame(self.iter_data)
+        _pplot_df = pd.DataFrame(self.iter_param)
         sns.pairplot(_pplot_df)
         current_time = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
         title = f"Pair Plot - Created on {current_time}"
@@ -129,6 +143,10 @@ class Sub(Main):
         plt.figtext(0.5, 0.95, subtitle, ha='center', fontsize=12, color='grey')
         plt.savefig("/Users/eugen/Downloads/pair_plot.png")
         return
+
+    @property
+    def display(self):
+        return logging.info(self.q_table)
 
     @staticmethod
     def define_state(row):
@@ -193,19 +211,21 @@ class Sub(Main):
 
 if __name__ == "__main__":
     def objective(params, msgs, n_calls):
-        alpha, gamma, epsilon, decay = params
-        agent = Sub(alpha=alpha, gamma=gamma, epsilon=epsilon, decay=decay, msgs=msgs, calls=n_calls)
+        #alpha, gamma, epsilon, decay = params
+        agent = Sub(alpha=0.5, gamma=0.99, epsilon=0.1, decay=10, msgs=msgs, calls=n_calls)
         return -agent.train()
 
     def send_image(message):
-        image_path = "/Users/eugen/Downloads/pair_plot.png"
-        try:
-            with open(image_path, 'rb') as photo:
-                tb.send_photo(message.chat.id, photo, caption="Pair plot")
-        except FileNotFoundError:
-            tb.send_message(message.chat_id, "Image file not found.")
-        except Exception as e:
-            tb.send_message(message.chat_id, f"Failed to send image: {e}")
+        _graph_name_lst: list = ["pair_plot", "line_plot"]
+        for path in _graph_name_lst:
+            image_path = f"/Users/eugen/Downloads/{path}.png"
+            try:
+                with open(image_path, 'rb') as photo:
+                    tb.send_photo(message.chat.id, photo, caption="Pair plot")
+            except FileNotFoundError:
+                tb.send_message(message.chat_id, "Image file not found.")
+            except Exception as e:
+                tb.send_message(message.chat_id, f"Failed to send image: {e}")
 
     try:
         api_key = bot.BOT().extract_api_key()
@@ -252,7 +272,8 @@ if __name__ == "__main__":
                              decay=result.x[3],
                              msgs=msg,
                              calls=str(n_calls))
-            best_agent.train()
+            #best_agent.train()
+            best_agent.lplot(n_calls)
             best_agent.pplot()
             send_image(msg)
 
