@@ -1,10 +1,12 @@
 import ema
 import math
+import time
 import random
 import logging
 import telebot
 import requests
 import matplotlib
+from prettytable import PrettyTable
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -18,10 +20,11 @@ from concurrent.futures import ThreadPoolExecutor
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 matplotlib.use('Agg')
 iterated_parameters: dict = {}  # Store iterated parameters
+table = PrettyTable()
 
 omitted_rows = 810001  # Default 1
 no_of_calls = 10  # n_calls
-no_of_episodes = 35  # episodes
+no_of_episodes = 1  # episodes
 reward_hist: list = []  # Store iterated objective
 training_boundaries: list = [no_of_calls,
                              no_of_episodes,]  # Stores training boundaries (no. of episodes, calls, etc.)
@@ -75,8 +78,6 @@ class Sub(Main):
                     ('Neutral', 'Uptrend'),
                     ('Neutral', 'Sideways'),
                     ('Neutral', 'Downtrend')]
-    current_actions: list = ['Buy', 'Sell', 'Hold']
-
     call = 1
 
     def __init__(self, params, message, n_calls):
@@ -91,12 +92,12 @@ class Sub(Main):
 
         self.episodes = training_boundaries[1]
 
-        self.current_actions = ["Buy", "Sell", "Hold"]
+        self.available_actions = ["Buy", "Sell", "Hold"]
         self.message = message.chat.id
         self.n_calls = n_calls
 
     def train(self):
-        self.q_table, self.state_to_index = self.initialize_parameters(self.states, self.current_actions)
+        self.q_table, self.state_to_index = self.initialize_parameters(self.states, self.available_actions)
 
         total_reward = 0  # Change to self. or
 
@@ -118,18 +119,18 @@ class Sub(Main):
                 # 1) Randomly choosing a current_action or
                 # 2) Selects best course of current_action based on Q-Table
                 if random.uniform(0, 1) < self.epsilon:
-                    current_action = random.choice(range(len(self.current_actions)))
+                    action_index = random.choice(range(len(self.available_actions)))
                 else:
-                    current_action = np.argmax(self.q_table[state_index])
-                current_action = self.current_actions[current_action]
+                    action_index = np.argmax(self.q_table[state_index])
+                current_action = self.available_actions[action_index]
 
                 # Gets result of next row
-                next_row = future_state_index.result()
+                next_row_index = future_state_index.result()
 
                 # Calculates reward and update q-table based on q-learning formula
-                reward = self.calculate_reward(content_row, next_row, current_action)
+                reward = self.calculate_reward(_row_index, current_action)
                 episode_reward += reward
-                self.update_q_table(state_index, current_action, next_row, reward)
+                self.update_q_table(state_index, action_index, next_row_index, reward)
 
             # Updates message through telegram bot
             tb.send_message(self.message, f"Episode: {episode + 1}/{self.episodes} "
@@ -145,22 +146,22 @@ class Sub(Main):
         return total_reward
 
     @classmethod
-    def initialize_parameters(cls, states, current_actions):
+    def initialize_parameters(cls, states, available_actions):
         """
         Creates new table (Q-table) and map to store possible states
         :param states: Contains all the possible states based on MACD and EMA 12/24
         :type states: List(tuple(string, string)
 
-        :param current_actions: Contains all the possible current_actions (buy, sell, hold) based on MACD and EMA 12/24
-        :type current_actions: List(string)
+        :param available_actions: Contains all the possible available_actions (buy, sell, hold) based on MACD and EMA 12/24
+        :type available_actions: List(string)
 
-        :return: new_table: Table of size len(state) by len(current_actions)
+        :return: new_table: Table of size len(state) by len(available_actions)
         :rtype: new_table: NumPy array
 
         :return: new_map: Map of all possible states and their respective numerical index
         :rtype: new_map: dict[int, int]
         """
-        new_table = np.zeros((len(states), len(current_actions)))
+        new_table = np.zeros((len(states), len(available_actions)))
         new_map = {i: i for i in range(len(states))}
         return new_table, new_map
 
@@ -226,7 +227,8 @@ class Sub(Main):
 
     def next_row(self, _row_index):
         try:
-            return self.df.iloc[_row_index + 1]
+            next_state = self.define_state(self.df.iloc[_row_index + 1])
+            return self.state_to_index[next_state]
         except (IndexError, KeyError) as e:
             logging.error(f"Error at index {_row_index}: {str(e)}")
             raise  # Re-raise the exception for further handling or logging
@@ -234,14 +236,11 @@ class Sub(Main):
             logging.error(f"Unexpected error at index {_row_index}: {str(e)}")
             raise
 
-    @staticmethod
-    def calculate_reward(content_row, next_row, current_action):
+    def calculate_reward(self, _row_index, current_action):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
-        :param content_row: Contains initial mid-price
-
-        :param next_row: Contains afterward mid-price
+        :param _row_index: Contains initial mid-price
 
         :param current_action: Buy, sell or hold (Penalty 0.1)
         :type current_action: string
@@ -249,8 +248,8 @@ class Sub(Main):
         :return: return positive or negative profit
         :rtype: double
         """
-        current_price = content_row['Mid Price']
-        next_price = next_row['Mid Price']
+        current_price = self.df.iloc[_row_index]['Mid Price']
+        next_price = self.df.iloc[_row_index + 1]['Mid Price']
 
         if current_price is None or next_price is None:
             raise KeyError("Missing 'Mid Price' in on of the rows.")
@@ -265,19 +264,20 @@ class Sub(Main):
         else:
             return -0.1
 
-    def update_q_table(self, state_index, current_action, next_row, reward):
+    def update_q_table(self, state_index, current_action, next_row_index, reward):
         """
         Updates q_table based on q-learning update rule
         :param state_index: Current state index
         :param current_action: Current choice of current_action
-        :param next_row: Next state row
+        :param next_row_index: Next state row
         :param reward: Reward
         """
         try:
             current_q_value = self.q_table[state_index, current_action]
-            max_future_q = np.max(self.q_table[next_row])
+            max_future_q = np.max(self.q_table[next_row_index])
             td_target = reward + self.gamma * max_future_q
             self.q_table[state_index, current_action] = current_q_value + self.alpha * (td_target - current_q_value)
+            # self.log_q_table()
         except IndexError as e:
             logging.error(f"IndexError at state index={state_index}, current_action={current_action}: {e}")
         except ValueError as e:
@@ -313,6 +313,12 @@ class Sub(Main):
                 logging.error(f"TypeError: {e} - Ensure self.iterated_parameters[key] is a list before calling append.")
             except Exception as e:
                 logging.error(f"Unexpected error occurred while updating iterated_parameters for {key}: {e}")
+
+    def log_q_table(self):
+        pretty_q_table = pd.DataFrame(self.q_table,
+                                      columns=[f"{i}" for i in self.available_actions],
+                                      index=self.states)
+        logging.info(f"\n{pretty_q_table}")
 
 
 if __name__ == "__main__":
@@ -364,7 +370,7 @@ if __name__ == "__main__":
         }
 
         for key, value in message_map.items():
-            tb.send_message(message.chat_id, f"Best {key} : {value}")
+            tb.send_message(message.chat.id, f"Best {key} : {value}")
 
         create_line_plot()
         create_pair_plot()
@@ -373,11 +379,11 @@ if __name__ == "__main__":
             image_path = f"/Users/eugen/Downloads/{path}.png"
             try:
                 with open(image_path, 'rb') as photo:
-                    tb.send_photo(message.chat.id, photo, caption="Pair plot")
+                    tb.send_photo(message.chat.id, photo, caption=f"{path}")
             except FileNotFoundError:
-                tb.send_message(message.chat_id, "Image file not found.")
+                tb.send_message(message.chat.id, "Image file not found.")
             except Exception as e:
-                tb.send_message(message.chat_id, f"Failed to send image: {e}")
+                tb.send_message(message.chat.id, f"Failed to send image: {e}")
 
     def create_line_plot():
         plt.figure(figsize=(10, 6))
@@ -415,13 +421,12 @@ if __name__ == "__main__":
         def main(message):
             n_calls = training_boundaries[0]
             param_space: list[tuple] = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
-            #try:
+
             result = gp_minimize(
                 lambda params: objective(params, message, n_calls),
                 dimensions=param_space,
                 n_calls=n_calls,
                 random_state=42)
             update_tele(result, message)
-            #except Exception as e:
-                #logging.critical(f"Fatal error in training: {e}")
+
         tb.infinity_polling()
