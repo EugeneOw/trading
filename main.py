@@ -1,17 +1,15 @@
-import telebot
-
 import ema
 import math
 import random
 import logging
-from typing import Optional
-from telebot import TeleBot
+import telebot
+import requests
 import matplotlib
 import numpy as np
 import pandas as pd
-import requests
 import seaborn as sns
 import api_key_extractor
+from telebot import TeleBot
 from skopt import gp_minimize
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -134,9 +132,8 @@ class Sub(Main):
                 self.update_q_table(state_index, current_action, next_row, reward)
 
             # Updates message through telegram bot
-            if self.n_calls is not type(int):
-                tb.send_message(self.message, f"Episode: {episode+1}/{self.episodes} "
-                                              f"\nCalls: {self.call}/{self.n_calls}")
+            tb.send_message(self.message, f"Episode: {episode + 1}/{self.episodes} "
+                                          f"\nCalls: {self.call}/{self.n_calls}")
 
             self.store_parameters(episode_reward)
 
@@ -229,9 +226,7 @@ class Sub(Main):
 
     def next_row(self, _row_index):
         try:
-            next_row = self.df.iloc[_row_index + 1]
-            next_state = self.define_state(next_row)
-            return self.state_to_index[next_state]
+            return self.df.iloc[_row_index + 1]
         except (IndexError, KeyError) as e:
             logging.error(f"Error at index {_row_index}: {str(e)}")
             raise  # Re-raise the exception for further handling or logging
@@ -245,16 +240,14 @@ class Sub(Main):
         Calculates the reward for selecting correct or wrong decisions.
 
         :param content_row: Contains initial mid-price
-        :type content_row: double
 
         :param next_row: Contains afterward mid-price
-        :type next_row: double
 
         :param current_action: Buy, sell or hold (Penalty 0.1)
         :type current_action: string
 
         :return: return positive or negative profit
-        :rtype: float
+        :rtype: double
         """
         current_price = content_row['Mid Price']
         next_price = next_row['Mid Price']
@@ -422,13 +415,13 @@ if __name__ == "__main__":
         def main(message):
             n_calls = training_boundaries[0]
             param_space: list[tuple] = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
-            try:
-                result = gp_minimize(
-                    lambda params: objective(params, message, n_calls),
-                    dimensions=param_space,
-                    n_calls=n_calls,
-                    random_state=42)
-                update_tele(result, message)
-            except Exception as e:
-                logging.critical(f"Fatal error in training: {e}")
+            #try:
+            result = gp_minimize(
+                lambda params: objective(params, message, n_calls),
+                dimensions=param_space,
+                n_calls=n_calls,
+                random_state=42)
+            update_tele(result, message)
+            #except Exception as e:
+                #logging.critical(f"Fatal error in training: {e}")
         tb.infinity_polling()
