@@ -7,7 +7,7 @@ class EMA:
         self.periods = [12, 24]
         self.df = pd.read_csv(file)
 
-    def ema(self):
+    def ema_calc(self):
         """
         Performs EMA 12 & EMA 24 calculation.
         :return: Returns an updated csv file with 2 new rows(EMA 12 and EMA 24).
@@ -34,28 +34,3 @@ class EMA:
             logging.error(f"Unexpected error: {e}")
             return None
 
-    def macd(self):
-        """
-        Performs Moving average convergence/divergence calculation
-        :return: Returns an updated csv file with 1 new row (MACD).
-        :rtype: self.df: Dataframe
-        """
-        self.ema()
-        try:
-            self.df[f'MACD'] = self.df['EMA 24'] - self.df['EMA 12']
-            return self.df
-        except AttributeError as e:
-            logging.error(f"Attribute error: {e}")
-            return None
-        except KeyError as e:
-            logging.error(f"Column not found: {e}")
-            return None
-        except ValueError as e:
-            logging.error(f"Value error during calculation: {e}")
-            return None
-        except TypeError as e:
-            logging.error(f"Type error in operation: {e}")
-            return None
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-            return None

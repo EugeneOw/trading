@@ -1,9 +1,9 @@
-import ema
+from financial_instruments import macd
 import math
-import time
 import random
 import logging
 import telebot
+import notify
 import requests
 import matplotlib
 from prettytable import PrettyTable
@@ -48,7 +48,7 @@ class Main:
         :rtype: df: Dataframe
         """
         try:
-            df = ema.EMA(file_path)
+            df = macd.MACD(file_path)
             df = df.macd()
             return df
 
@@ -80,7 +80,7 @@ class Sub(Main):
                     ('Neutral', 'Downtrend')]
     call = 1
 
-    def __init__(self, params, message, n_calls):
+    def __init__(self, params, alert, n_calls):
         super().__init__()
         self.q_table = None
         self.state_to_index = None
@@ -91,9 +91,8 @@ class Sub(Main):
         self.decay = params[3]
 
         self.episodes = training_boundaries[1]
-
+        self.alert = alert
         self.available_actions = ["Buy", "Sell", "Hold"]
-        self.message = message.chat.id
         self.n_calls = n_calls
 
     def train(self):
@@ -102,8 +101,6 @@ class Sub(Main):
         total_reward = 0  # Change to self. or
 
         for episode in range(self.episodes):
-            self.epsilon = self.calculate_decay(episode)  # ! self.epsilon is over-wrote here
-            
             episode_reward = 0
 
             for _row_index in range(len(self.df)-omitted_rows):
@@ -133,16 +130,15 @@ class Sub(Main):
                 self.update_q_table(state_index, action_index, next_row_index, reward)
 
             # Updates message through telegram bot
-            tb.send_message(self.message, f"Episode: {episode + 1}/{self.episodes} "
+            self.alert.notify(f"Episode: {episode + 1}/{self.episodes} "
                                           f"\nCalls: {self.call}/{self.n_calls}")
-
             self.store_parameters(episode_reward)
 
             # Shows how objective changes as parameters and episode change
             reward_hist.append(episode_reward)
             total_reward += episode_reward
         Sub.call += 1
-        tb.send_message(self.message, f"{self.q_table}")
+        self.log_q_table(alert=self.alert)
         return total_reward
 
     @classmethod
@@ -277,7 +273,6 @@ class Sub(Main):
             max_future_q = np.max(self.q_table[next_row_index])
             td_target = reward + self.gamma * max_future_q
             self.q_table[state_index, current_action] = current_q_value + self.alpha * (td_target - current_q_value)
-            # self.log_q_table()
         except IndexError as e:
             logging.error(f"IndexError at state index={state_index}, current_action={current_action}: {e}")
         except ValueError as e:
@@ -314,11 +309,11 @@ class Sub(Main):
             except Exception as e:
                 logging.error(f"Unexpected error occurred while updating iterated_parameters for {key}: {e}")
 
-    def log_q_table(self):
+    def log_q_table(self, alert):
         pretty_q_table = pd.DataFrame(self.q_table,
                                       columns=[f"{i}" for i in self.available_actions],
                                       index=self.states)
-        logging.info(f"\n{pretty_q_table}")
+        alert.notify(f"{pretty_q_table}")
 
 
 if __name__ == "__main__":
@@ -342,22 +337,22 @@ if __name__ == "__main__":
         except requests.exceptions.ConnectionError as e:
             logging.error("Network error:", e)
 
-    def objective(params, message, n_calls):
+    def objective(params, alert, n_calls):
         """
+        :param alert: Contain telegram message handler
         :param params: Contains all the parameters (i.e. alpha, ...)
-        :param message: Contain telegram message handler
         :param n_calls: Contain number of calls to perform
         :type n_calls: str or int
 
         :return: reward: We return a negative value as minimization is preferred rather than maximization
         """
         agent = Sub(params,
-                    message=message,
+                    alert=alert,
                     n_calls=n_calls)
         reward = agent.train()
         return -reward
 
-    def update_tele(result, message):
+    def summary_update(result, alert):
         """
         Sends best parameters and images (pair-plot & line-graph) to telegram
         """
@@ -370,7 +365,7 @@ if __name__ == "__main__":
         }
 
         for key, value in message_map.items():
-            tb.send_message(message.chat.id, f"Best {key} : {value}")
+            alert.notify(f"Best {key}:{value}")
 
         create_line_plot()
         create_pair_plot()
@@ -379,11 +374,10 @@ if __name__ == "__main__":
             image_path = f"/Users/eugen/Downloads/{path}.png"
             try:
                 with open(image_path, 'rb') as photo:
-                    tb.send_photo(message.chat.id, photo, caption=f"{path}")
-            except FileNotFoundError:
-                tb.send_message(message.chat.id, "Image file not found.")
-            except Exception as e:
-                tb.send_message(message.chat.id, f"Failed to send image: {e}")
+                    alert.notify_image(photo, f"{path}")
+            except FileNotFoundError or Exception:
+                alert.notify("Image file not found.")
+
 
     def create_line_plot():
         plt.figure(figsize=(10, 6))
@@ -416,17 +410,22 @@ if __name__ == "__main__":
     api_key = api_key.extract_api_key()
 
     tb = connect_to_telebot(api_key)
+
     if isinstance(tb, TeleBot):
         @tb.message_handler(commands=['start'])
         def main(message):
-            n_calls = training_boundaries[0]
-            param_space: list[tuple] = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
+            if no_of_calls >= 10:
+                alert = notify.Notify(tb, message_id=message)
+                alert.initial_notify()
 
-            result = gp_minimize(
-                lambda params: objective(params, message, n_calls),
-                dimensions=param_space,
-                n_calls=n_calls,
-                random_state=42)
-            update_tele(result, message)
+                n_calls = training_boundaries[0]
+                param_space: list[tuple] = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
 
+                result = gp_minimize(
+                    lambda params: objective(params, alert, n_calls),
+                    dimensions=param_space,
+                    n_calls=n_calls,
+                    random_state=42)
+                summary_update(result, alert)
+            logging.error("Too little no. of calls")
         tb.infinity_polling()
