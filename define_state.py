@@ -1,7 +1,7 @@
 import logging
 
 
-class State:
+class DefineState:
     def __init__(self):
         self.state_map = {
             ("Bullish", "Uptrend"): 0,
@@ -23,7 +23,7 @@ class State:
         self.ema_diff_limit = 0.5
         self.neutral_limits = 0
 
-    def define_state(self, row, bear_threshold, bull_threshold, ema_difference):
+    def def_state(self, row, bear_threshold, bull_threshold, ema_difference):
         try:
             self.macd = row['MACD']
             self.ema_12 = row['EMA 12']
@@ -31,7 +31,7 @@ class State:
 
             self.bear_threshold = bear_threshold
             self.bull_threshold = bull_threshold
-            self.ema_difference = ema_difference
+            self.ema_diff_limit = ema_difference
 
             senti_state = self.market_sentiment()
             struc_state = self.market_structure()
@@ -54,9 +54,14 @@ class State:
         else:
             return "Neutral"
 
-
     def market_structure(self):
         ema_diff = abs(self.ema_12 - self.ema_24)
         if ema_diff > self.ema_diff_limit:
-            return "Downtrend"
-        elif
+            if self.ema_12 > self.ema_24:
+                return "Uptrend"
+            elif self.ema_12 < self.ema_24:
+                return "Downtrend"
+            else:
+                return "Sideways"
+        elif ema_diff < self.ema_diff_limit:
+            return "Sideways"

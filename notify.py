@@ -1,3 +1,6 @@
+import datetime
+
+
 class Notify:
     def __init__(self, tb, message_id):
         self.tb = tb
@@ -11,4 +14,3 @@ class Notify:
 
     def notify_image(self, photo, message):
         return self.tb.send_photo(self.chat_id, photo, caption=message)
-

@@ -1,14 +1,12 @@
-from financial_instruments import macd
 import math
 import time
 import random
 import logging
-import state
+import define_state
 import telebot
 import notify
 import requests
 import matplotlib
-from prettytable import PrettyTable
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -17,7 +15,8 @@ from telebot import TeleBot
 from skopt import gp_minimize
 from datetime import datetime
 import matplotlib.pyplot as plt
-from concurrent.futures import ThreadPoolExecutor
+from prettytable import PrettyTable
+from financial_instruments import macd
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 matplotlib.use('Agg')
@@ -25,8 +24,8 @@ iterated_parameters: dict = {}  # Store iterated parameters
 table = PrettyTable()
 
 omitted_rows = 1  # Default 1, max 814490
-no_of_calls = 10  # n_calls
-no_of_episodes = 1  # episodes
+no_of_calls = 20  # n_calls
+no_of_episodes = 30  # episodes
 reward_hist: list = []  # Store iterated objective
 training_boundaries: list = [no_of_calls,
                              no_of_episodes, ]  # Stores training boundaries (no. of episodes, calls, etc.)
@@ -37,7 +36,6 @@ class Main:
 
     def __init__(self):
         self.df = self.__init_data(self.file_path)
-        self.state = state.State()
 
     @classmethod
     def __init_data(cls, file_path):
@@ -103,18 +101,18 @@ class Sub(Main):
     def train(self):
         self.q_table, self.state_to_index = self.initialize_parameters(self.states, self.available_actions)
 
-        total_reward = 0  # Change to self. or
-
+        total_reward = 0
+        state_class = define_state.DefineState()
         for episode in range(self.episodes):
             episode_reward = 0
 
             for _row_index in range(len(self.df) - omitted_rows):
                 # Get the state of individual row.
                 content_row = self.df.iloc[_row_index]
-                current_state_index = self.state.define_state(content_row,
-                                                              self.bear_threshold,
-                                                              self.bull_threshold,
-                                                              self.ema_difference)
+                current_state_index = state_class.def_state(content_row,
+                                                            self.bear_threshold,
+                                                            self.bull_threshold,
+                                                            self.ema_difference)
 
                 state_index = self.state_to_index[current_state_index]
 
@@ -128,13 +126,12 @@ class Sub(Main):
                 current_action = self.available_actions[action_index]
 
                 # Gets result of next row
-                next_row_index = self.next_row(_row_index)
+                next_row_index = self.next_row(_row_index, state_class)
 
                 # Calculates reward and update q-table based on q-learning formula
                 reward = self.calculate_reward(_row_index, current_action)
                 episode_reward += reward
                 self.update_q_table(state_index, action_index, next_row_index, reward)
-
             # Updates message through telegram bot
             self.alert.notify(f"Episode: {episode + 1}/{self.episodes}"
                               f"\nCalls: {self.call}/{self.n_calls}")
@@ -176,9 +173,13 @@ class Sub(Main):
         """
         return math.exp(-episode / (self.episodes / self.decay))
 
-    def next_row(self, _row_index):
+    def next_row(self, _row_index, state_class):
         try:
-            next_state = self.state.define_state(self.df.iloc[_row_index + 1])
+            next_state = state_class.def_state(self.df.iloc[_row_index + 1],
+                                               self.bear_threshold,
+                                               self.bull_threshold,
+                                               self.ema_difference)
+
             return self.state_to_index[next_state]
         except (IndexError, KeyError) as e:
             logging.error(f"Error at index {_row_index}: {str(e)}")
@@ -315,10 +316,13 @@ if __name__ == "__main__":
         """
         graph_name_lst: list = ["pair_plot", "line_plot"]
         message_map: dict = {
-            "alpha": result.x[0],
-            "gamma": result.x[1],
-            "epsilon": result.x[2],
-            "decay": int(result.x[3])
+            "alpha ": result.x[0],
+            "gamma ": result.x[1],
+            "epsilon ": result.x[2],
+            "decay ": int(result.x[3]),
+            "bearish threshold ": result.x[4],
+            "bullish threshold ": result.x[5],
+            "ema difference ": result.x[6]
         }
 
         for key, value in message_map.items():
@@ -384,9 +388,7 @@ if __name__ == "__main__":
                                             (1, 10),  # Decay
                                             (-5, 0),  # Bearish threshold
                                             (0, 5),  # Bullish threshold
-                                            (0.01, 1)] # EMA Difference limit
-
-
+                                            (0.01, 1)]  # EMA Difference limit
 
                 result = gp_minimize(
                     lambda params: objective(params, alert, n_calls),
