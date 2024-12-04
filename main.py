@@ -29,7 +29,7 @@ no_of_calls = 10  # n_calls
 no_of_episodes = 1  # episodes
 reward_hist: list = []  # Store iterated objective
 training_boundaries: list = [no_of_calls,
-                             no_of_episodes,]  # Stores training boundaries (no. of episodes, calls, etc.)
+                             no_of_episodes, ]  # Stores training boundaries (no. of episodes, calls, etc.)
 
 
 class Main:
@@ -87,10 +87,13 @@ class Sub(Main):
         self.q_table = None
         self.state_to_index = None
 
-        self.alpha = params[0]  # Learning rate: How much new information affect Q-Value
-        self.gamma = params[1]  # Discount rate: Determines importance of future rewards
-        self.epsilon = params[2]  # Exploration rate: Determines chance of using known or unknown action
+        self.alpha = params[0]
+        self.gamma = params[1]
+        self.epsilon = params[2]
         self.decay = params[3]
+        self.bear_threshold = params[4]
+        self.bull_threshold = params[5]
+        self.ema_difference = params[6]
 
         self.episodes = training_boundaries[1]
         self.alert = alert
@@ -105,12 +108,16 @@ class Sub(Main):
         for episode in range(self.episodes):
             episode_reward = 0
 
-            for _row_index in range(len(self.df)-omitted_rows):
+            for _row_index in range(len(self.df) - omitted_rows):
                 # Get the state of individual row.
                 content_row = self.df.iloc[_row_index]
-                current_state_index = self.state.define_state(content_row)
+                current_state_index = self.state.define_state(content_row,
+                                                              self.bear_threshold,
+                                                              self.bull_threshold,
+                                                              self.ema_difference)
+
                 state_index = self.state_to_index[current_state_index]
-                
+
                 # Choosing current_action based on exploration rate (That decays exponentially)
                 # 1) Randomly choosing a current_action or
                 # 2) Selects best course of current_action based on Q-Table
@@ -129,8 +136,8 @@ class Sub(Main):
                 self.update_q_table(state_index, action_index, next_row_index, reward)
 
             # Updates message through telegram bot
-            self.alert.notify(f"Episode: {episode + 1}/{self.episodes} "
-                                          f"\nCalls: {self.call}/{self.n_calls}")
+            self.alert.notify(f"Episode: {episode + 1}/{self.episodes}"
+                              f"\nCalls: {self.call}/{self.n_calls}")
             self.store_parameters(episode_reward)
 
             # Shows how objective changes as parameters and episode change
@@ -285,6 +292,7 @@ if __name__ == "__main__":
         except requests.exceptions.ConnectionError as e:
             logging.error("Network error:", e)
 
+
     def objective(params, alert, n_calls):
         """
         :param alert: Contain telegram message handler
@@ -299,6 +307,7 @@ if __name__ == "__main__":
                     n_calls=n_calls)
         reward = agent.train()
         return -reward
+
 
     def summary_update(result, alert):
         """
@@ -329,7 +338,7 @@ if __name__ == "__main__":
 
     def create_line_plot():
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, (no_of_episodes*no_of_calls) + 1),
+        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
                  reward_hist,
                  marker='o',
                  color='b',
@@ -343,6 +352,7 @@ if __name__ == "__main__":
         plt.savefig("/Users/eugen/Downloads/line_plot.png")
         return
 
+
     def create_pair_plot():
         pplot_df = pd.DataFrame(iterated_parameters)
         sns.pairplot(pplot_df)
@@ -353,6 +363,7 @@ if __name__ == "__main__":
         plt.figtext(0.5, 0.95, subtitle, ha='center', fontsize=12, color='grey')
         plt.savefig("/Users/eugen/Downloads/pair_plot.png")
         return
+
 
     api_key = api_key_extractor.APIKeyExtractor()
     api_key = api_key.extract_api_key()
@@ -367,7 +378,15 @@ if __name__ == "__main__":
                 alert.initial_notify()
 
                 n_calls = training_boundaries[0]
-                param_space: list[tuple] = [(0.01, 0.5), (0.8, 0.99), (0.1, 1), (1, 10)]
+                param_space: list[tuple] = [(0.01, 0.5),  # Alpha (Learning rate)
+                                            (0.8, 0.99),  # Gamma (Discount rate)
+                                            (0.1, 1),  # Epsilon (Exploration rate)
+                                            (1, 10),  # Decay
+                                            (-5, 0),  # Bearish threshold
+                                            (0, 5),  # Bullish threshold
+                                            (0.01, 1)] # EMA Difference limit
+
+
 
                 result = gp_minimize(
                     lambda params: objective(params, alert, n_calls),
@@ -377,4 +396,6 @@ if __name__ == "__main__":
                 summary_update(result, alert)
             else:
                 logging.error("Too little no. of calls")
+
+
         tb.infinity_polling()
