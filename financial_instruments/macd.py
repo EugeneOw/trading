@@ -1,4 +1,4 @@
-import ema
+from financial_instruments import ema
 import logging
 
 

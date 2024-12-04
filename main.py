@@ -1,7 +1,9 @@
 from financial_instruments import macd
 import math
+import time
 import random
 import logging
+import state
 import telebot
 import notify
 import requests
@@ -22,7 +24,7 @@ matplotlib.use('Agg')
 iterated_parameters: dict = {}  # Store iterated parameters
 table = PrettyTable()
 
-omitted_rows = 810001  # Default 1
+omitted_rows = 1  # Default 1, max 814490
 no_of_calls = 10  # n_calls
 no_of_episodes = 1  # episodes
 reward_hist: list = []  # Store iterated objective
@@ -35,7 +37,7 @@ class Main:
 
     def __init__(self):
         self.df = self.__init_data(self.file_path)
-        self.executor = ThreadPoolExecutor(max_workers=2)
+        self.state = state.State()
 
     @classmethod
     def __init_data(cls, file_path):
@@ -87,7 +89,7 @@ class Sub(Main):
 
         self.alpha = params[0]  # Learning rate: How much new information affect Q-Value
         self.gamma = params[1]  # Discount rate: Determines importance of future rewards
-        self.epsilon = params[2]
+        self.epsilon = params[2]  # Exploration rate: Determines chance of using known or unknown action
         self.decay = params[3]
 
         self.episodes = training_boundaries[1]
@@ -104,12 +106,9 @@ class Sub(Main):
             episode_reward = 0
 
             for _row_index in range(len(self.df)-omitted_rows):
-                # Submitting a function(self.next_row) to be executed asynchronously.
-                future_state_index = self.executor.submit(self.next_row, _row_index)
-
                 # Get the state of individual row.
                 content_row = self.df.iloc[_row_index]
-                current_state_index = self.define_state(content_row)
+                current_state_index = self.state.define_state(content_row)
                 state_index = self.state_to_index[current_state_index]
                 
                 # Choosing current_action based on exploration rate (That decays exponentially)
@@ -122,7 +121,7 @@ class Sub(Main):
                 current_action = self.available_actions[action_index]
 
                 # Gets result of next row
-                next_row_index = future_state_index.result()
+                next_row_index = self.next_row(_row_index)
 
                 # Calculates reward and update q-table based on q-learning formula
                 reward = self.calculate_reward(_row_index, current_action)
@@ -170,60 +169,9 @@ class Sub(Main):
         """
         return math.exp(-episode / (self.episodes / self.decay))
 
-    @staticmethod
-    def define_state(row) -> int:
-        """
-        Defines the state of the row that appears
-        :param row: Returns content of that individual row
-        :type row: Pandas series
-        
-        :return: Returns index of whatever state is defined
-        :rtype: int
-        """
-        state_map = {
-            ("Bullish", "Uptrend"): 0,
-            ("Bullish", "Downtrend"): 1,
-            ("Bullish", "Sideways"): 2,
-            ("Bearish", "Uptrend"): 3,
-            ("Bearish", "Downtrend"): 4,
-            ("Bearish", "Sideways"): 5,
-            ("Neutral", "Uptrend"): 6,
-            ("Neutral", "Downtrend"): 7,
-            ("Neutral", "Sideways"): 8,
-        }
-
-        try:
-            macd = row['MACD']
-            ema_12 = row['EMA 12']
-            ema_24 = row['EMA 24']
-
-            if macd > 0:
-                macd_state = "Bullish"
-            elif macd < 0:
-                macd_state = "Bearish"
-            else:
-                macd_state = "Neutral"
-
-            if ema_12 > ema_24:
-                trend_state = 'Uptrend'
-            elif ema_12 < ema_24:
-                trend_state = 'Downtrend'
-            else:
-                trend_state = 'Sideways'
-                
-            return state_map[(macd_state, trend_state)]
-
-        except KeyError:
-            logging.error("Row doesn't exists")
-        except IndexError:
-            logging.error("Attempting to access index that is out of bonds.")
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-            raise
-
     def next_row(self, _row_index):
         try:
-            next_state = self.define_state(self.df.iloc[_row_index + 1])
+            next_state = self.state.define_state(self.df.iloc[_row_index + 1])
             return self.state_to_index[next_state]
         except (IndexError, KeyError) as e:
             logging.error(f"Error at index {_row_index}: {str(e)}")
@@ -427,5 +375,6 @@ if __name__ == "__main__":
                     n_calls=n_calls,
                     random_state=42)
                 summary_update(result, alert)
-            logging.error("Too little no. of calls")
+            else:
+                logging.error("Too little no. of calls")
         tb.infinity_polling()

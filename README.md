@@ -78,7 +78,7 @@ These indicators are used to determine market trends (Bullish, Bearish, or Neutr
 
 1.	Set Up API Key:
 	
-		Exract your Telegram Bot API key (from BotFather) and place it in the api_key_extractor.py file.
+		Extract your Telegram Bot API key (from BotFather) and place it in the api_key_extractor.py file.
 
 
 2. **Run the Script:**
