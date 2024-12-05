@@ -4,13 +4,13 @@ import pandas as pd
 
 class EMA:
     def __init__(self, file):
-        self.periods = [12, 24]
+        self.periods = [12, 26]
         self.df = pd.read_csv(file)
 
     def ema_calc(self):
         """
-        Performs EMA 12 & EMA 24 calculation.
-        :return: Returns an updated csv file with 2 new rows(EMA 12 and EMA 24).
+        Performs EMA 12 & EMA 26 calculation.
+        :return: Returns an updated csv file with 2 new rows(EMA 12 and EMA 26).
         :rtype: self.df: Dataframe
         """
         try:

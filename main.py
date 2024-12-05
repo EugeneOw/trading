@@ -1,5 +1,4 @@
 import math
-import time
 import random
 import logging
 import define_state
@@ -24,11 +23,10 @@ iterated_parameters: dict = {}  # Store iterated parameters
 table = PrettyTable()
 
 omitted_rows = 1  # Default 1, max 814490
-no_of_calls = 20  # n_calls
-no_of_episodes = 30  # episodes
+no_of_calls = 15  # n_calls
+no_of_episodes = 10  # episodes
 reward_hist: list = []  # Store iterated objective
-training_boundaries: list = [no_of_calls,
-                             no_of_episodes, ]  # Stores training boundaries (no. of episodes, calls, etc.)
+training_boundaries: list = [no_of_calls, no_of_episodes]
 
 
 class Main:
@@ -69,15 +67,11 @@ class Main:
 
 
 class Sub(Main):
-    states: list = [('Bullish', 'Uptrend'),
-                    ('Bullish', 'Sideways'),
-                    ('Bullish', 'Downtrend'),
-                    ('Bearish', 'Uptrend'),
-                    ('Bearish', 'Sideways'),
-                    ('Bearish', 'Downtrend'),
-                    ('Neutral', 'Uptrend'),
-                    ('Neutral', 'Sideways'),
-                    ('Neutral', 'Downtrend')]
+    states = {
+        "Buy": 0,
+        "Sell": 1,
+        "Hold": 2
+    }
     call = 1
 
     def __init__(self, params, alert, n_calls):
@@ -89,9 +83,8 @@ class Sub(Main):
         self.gamma = params[1]
         self.epsilon = params[2]
         self.decay = params[3]
-        self.bear_threshold = params[4]
-        self.bull_threshold = params[5]
-        self.ema_difference = params[6]
+        self.macd_threshold = params[4]
+        self.ema_difference = params[5]
 
         self.episodes = training_boundaries[1]
         self.alert = alert
@@ -109,11 +102,7 @@ class Sub(Main):
             for _row_index in range(len(self.df) - omitted_rows):
                 # Get the state of individual row.
                 content_row = self.df.iloc[_row_index]
-                current_state_index = state_class.def_state(content_row,
-                                                            self.bear_threshold,
-                                                            self.bull_threshold,
-                                                            self.ema_difference)
-
+                current_state_index = state_class.def_state(content_row, self.macd_threshold, self.ema_difference)
                 state_index = self.state_to_index[current_state_index]
 
                 # Choosing current_action based on exploration rate (That decays exponentially)
@@ -132,9 +121,11 @@ class Sub(Main):
                 reward = self.calculate_reward(_row_index, current_action)
                 episode_reward += reward
                 self.update_q_table(state_index, action_index, next_row_index, reward)
+
             # Updates message through telegram bot
-            self.alert.notify(f"Episode: {episode + 1}/{self.episodes}"
-                              f"\nCalls: {self.call}/{self.n_calls}")
+            self.alert.notify(f"Episode: {episode + 1}/{self.episodes}"f"\nCalls: {self.call}/{self.n_calls}")
+
+            # Store parameters to build chart
             self.store_parameters(episode_reward)
 
             # Shows how objective changes as parameters and episode change
@@ -175,11 +166,7 @@ class Sub(Main):
 
     def next_row(self, _row_index, state_class):
         try:
-            next_state = state_class.def_state(self.df.iloc[_row_index + 1],
-                                               self.bear_threshold,
-                                               self.bull_threshold,
-                                               self.ema_difference)
-
+            next_state = state_class.def_state(self.df.iloc[_row_index + 1], self.macd_threshold, self.ema_difference)
             return self.state_to_index[next_state]
         except (IndexError, KeyError) as e:
             logging.error(f"Error at index {_row_index}: {str(e)}")
@@ -320,9 +307,8 @@ if __name__ == "__main__":
             "gamma ": result.x[1],
             "epsilon ": result.x[2],
             "decay ": int(result.x[3]),
-            "bearish threshold ": result.x[4],
-            "bullish threshold ": result.x[5],
-            "ema difference ": result.x[6]
+            "macd threshold ": result.x[4],
+            "ema difference ": result.x[5],
         }
 
         for key, value in message_map.items():
@@ -386,9 +372,8 @@ if __name__ == "__main__":
                                             (0.8, 0.99),  # Gamma (Discount rate)
                                             (0.1, 1),  # Epsilon (Exploration rate)
                                             (1, 10),  # Decay
-                                            (-5, 0),  # Bearish threshold
-                                            (0, 5),  # Bullish threshold
-                                            (0.01, 1)]  # EMA Difference limit
+                                            (1, 2),  # MACD threshold
+                                            (-1, 0)]  # EMA Difference limit
 
                 result = gp_minimize(
                     lambda params: objective(params, alert, n_calls),

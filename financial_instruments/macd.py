@@ -13,7 +13,8 @@ class MACD:
         :rtype: self.df: Dataframe
         """
         try:
-            self.df[f'MACD'] = self.df['EMA 24'] - self.df['EMA 12']
+            self.df[f'MACD'] = self.df['EMA 12'] - self.df['EMA 26']
+            self.df[f'Signal Line'] = self.df['MACD'].ewm(span=9, adjust=False).mean()
             return self.df
         except AttributeError as e:
             logging.error(f"Attribute error: {e}")
