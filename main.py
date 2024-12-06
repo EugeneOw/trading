@@ -101,8 +101,8 @@ class Sub(Main):
 
             for _row_index in range(len(self.df) - omitted_rows):
                 # Get the state of individual row.
-                content_row = self.df.iloc[_row_index]
-                current_state_index = state_class.def_state(content_row, self.macd_threshold, self.ema_difference)
+                current_row_content = self.df.iloc[_row_index]
+                current_state_index = state_class.def_state(current_row_content, self.macd_threshold, self.ema_difference)
                 state_index = self.state_to_index[current_state_index]
 
                 # Choosing current_action based on exploration rate (That decays exponentially)
@@ -115,10 +115,10 @@ class Sub(Main):
                 current_action = self.available_actions[action_index]
 
                 # Gets result of next row
-                next_row_index = self.next_row(_row_index, state_class)
+                next_row_index, next_row_content = self.next_row(_row_index, state_class)
 
                 # Calculates reward and update q-table based on q-learning formula
-                reward = self.calculate_reward(_row_index, current_action)
+                reward = self.calculate_reward(current_row_content, next_row_content, current_action)
                 episode_reward += reward
                 self.update_q_table(state_index, action_index, next_row_index, reward)
 
@@ -166,8 +166,9 @@ class Sub(Main):
 
     def next_row(self, _row_index, state_class):
         try:
-            next_state = state_class.def_state(self.df.iloc[_row_index + 1], self.macd_threshold, self.ema_difference)
-            return self.state_to_index[next_state]
+            next_row_content = self.df.iloc[_row_index + 1]
+            next_state = state_class.def_state(next_row_content, self.macd_threshold, self.ema_difference)
+            return self.state_to_index[next_state], next_row_content
         except (IndexError, KeyError) as e:
             logging.error(f"Error at index {_row_index}: {str(e)}")
             raise  # Re-raise the exception for further handling or logging
@@ -175,11 +176,16 @@ class Sub(Main):
             logging.error(f"Unexpected error at index {_row_index}: {str(e)}")
             raise
 
-    def calculate_reward(self, _row_index, current_action):
+    @staticmethod
+    def calculate_reward(current_row_content, next_row_content, current_action):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
-        :param _row_index: Contains initial mid-price
+        :param current_row_content: Contains initial content
+        :type current_row_content: Dataframe
+
+        :param next_row_content: Contains next row's content
+        :type next_row_content: Dataframe
 
         :param current_action: Buy, sell or hold (Penalty 0.1)
         :type current_action: string
@@ -187,8 +193,8 @@ class Sub(Main):
         :return: return positive or negative profit
         :rtype: double
         """
-        current_price = self.df.iloc[_row_index]['Mid Price']
-        next_price = self.df.iloc[_row_index + 1]['Mid Price']
+        current_price = current_row_content['Mid Price']
+        next_price = next_row_content['Mid Price']
 
         if current_price is None or next_price is None:
             raise KeyError("Missing 'Mid Price' in on of the rows.")
@@ -361,19 +367,25 @@ if __name__ == "__main__":
     tb = connect_to_telebot(api_key)
 
     if isinstance(tb, TeleBot):
-        @tb.message_handler(commands=['start'])
+        @tb.message_handler(commands=['test'])
+        def test(message):
+            parameters: list[
+                0.5, 0.8, 0.1, 1, 1, -1
+            ]
+
+        @tb.message_handler(commands=['train'])
         def main(message):
             if no_of_calls >= 10:
                 alert = notify.Notify(tb, message_id=message)
                 alert.initial_notify()
 
                 n_calls = training_boundaries[0]
-                param_space: list[tuple] = [(0.01, 0.5),  # Alpha (Learning rate)
-                                            (0.8, 0.99),  # Gamma (Discount rate)
-                                            (0.1, 1),  # Epsilon (Exploration rate)
-                                            (1, 10),  # Decay
-                                            (1, 2),  # MACD threshold
-                                            (-1, 0)]  # EMA Difference limit
+                param_space: list[tuple] = [(0.5, 1),  # Alpha (Learning rate) 0.5
+                                            (0.8, 0.99),  # Gamma (Discount rate) 0.8 or 0.99
+                                            (0, 0.1),  # Epsilon (Exploration rate) 0.1
+                                            (1, 10),  # Decay - 1 or 10
+                                            (-1, 1),  # MACD threshold 1
+                                            (-1, 0)]  # EMA Difference limit -1 or 0
 
                 result = gp_minimize(
                     lambda params: objective(params, alert, n_calls),
@@ -383,6 +395,4 @@ if __name__ == "__main__":
                 summary_update(result, alert)
             else:
                 logging.error("Too little no. of calls")
-
-
         tb.infinity_polling()
