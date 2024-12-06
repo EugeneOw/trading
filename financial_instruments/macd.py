@@ -1,33 +1,35 @@
-from financial_instruments import ema
 import logging
+import pandas as pd
+from financial_instruments import ema
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt='%d-%m-%Y %H:%M:%S'
+)
 
 
 class MACD:
-    def __init__(self, file):
-        self.df = ema.EMA(file).ema_calc()
+    def __init__(self):
+        self.dataset = ema.EMA().calculate_ema()
 
-    def macd(self):
+    def calculate_macd(self):
         """
         Performs Moving average convergence/divergence calculation
         :return: Returns an updated csv file with 1 new row (MACD).
-        :rtype: self.df: Dataframe
+        :rtype: self.dataset: Dataframe
         """
         try:
-            self.df[f'MACD'] = self.df['EMA 12'] - self.df['EMA 26']
-            self.df[f'Signal Line'] = self.df['MACD'].ewm(span=9, adjust=False).mean()
-            return self.df
-        except AttributeError as e:
-            logging.error(f"Attribute error: {e}")
-            return None
-        except KeyError as e:
-            logging.error(f"Column not found: {e}")
-            return None
-        except ValueError as e:
-            logging.error(f"Value error during calculation: {e}")
-            return None
-        except TypeError as e:
-            logging.error(f"Type error in operation: {e}")
-            return None
+            self.dataset[f'MACD'] = self.dataset['EMA 12'] - self.dataset['EMA 26']
+            self.dataset[f'Signal Line'] = (self.dataset['MACD'].ewm(
+                span=9,
+                adjust=False).mean())
+            return self.dataset
+        except (AttributeError or KeyError):
+            logging.error("Attempting to access non-existent column.")
+        except pd.errors.EmptyDataError:
+            logging.error("Empty file or no data to load.")
+        except ValueError:
+            logging.error("Error during dataset calculation.")
         except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-            return None
+            logging.error("Unexpected error: ", e)

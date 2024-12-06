@@ -1,36 +1,39 @@
 import logging
 import pandas as pd
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt='%d-%m-%Y %H:%M:%S'
+)
+file_path: str = '/Users/eugen/Documents/GitHub/trading/forex_data/dataset.csv'
+
 
 class EMA:
-    def __init__(self, file):
-        self.periods = [12, 26]
-        self.df = pd.read_csv(file)
+    def __init__(self):
+        self.ema_periods = [12, 26]  # Change calculate_macd as well.
+        self.dataset = pd.read_csv(file_path)
 
-    def ema_calc(self):
+    def calculate_ema(self):
         """
         Performs EMA 12 & EMA 26 calculation.
-        :return: Returns an updated csv file with 2 new rows(EMA 12 and EMA 26).
-        :rtype: self.df: Dataframe
+        :return: Returns an updated csv file with new rows of respective EMA periods.
+        :rtype: self.dataset: Dataframe
         """
         try:
-            self.df['Mid Price'] = (self.df['Ask'] + self.df['Bid']/2)
-            for period in self.periods:
-                self.df[f'EMA {period}'] = self.df['Mid Price'].ewm(span=period, adjust=False).mean()
-            return self.df
-        except AttributeError as e:
-            logging.error(f"Attribute error: {e}")
-            return None
-        except KeyError as e:
-            logging.error(f"Column not found: {e}")
-            return None
-        except ValueError as e:
-            logging.error(f"Value error during calculation: {e}")
-            return None
-        except TypeError as e:
-            logging.error(f"Type error in operation: {e}")
-            return None
+            ask_bid_price = self.dataset['Ask']+self.dataset['Bid']
+            self.dataset['Mid Price'] = ask_bid_price/2
+            for ema_period in self.ema_periods:
+                self.dataset[f'EMA {ema_period}'] = self.dataset['Mid Price'].ewm(
+                    span=ema_period,
+                    adjust=False,
+                ).mean()
+            return self.dataset
+        except (AttributeError or KeyError):
+            logging.error("Attempting to access non-existent column.")
+        except pd.errors.EmptyDataError:
+            logging.error("Empty file or no data to load.")
+        except ValueError:
+            logging.error(f"Error during dataset calculation.")
         except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-            return None
-
+            logging.error("Unexpected error: ", e)

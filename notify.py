@@ -1,6 +1,3 @@
-import datetime
-
-
 class Notify:
     def __init__(self, tb, message_id):
         self.tb = tb
