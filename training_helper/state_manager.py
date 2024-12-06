@@ -1,5 +1,4 @@
-import logging
-import constants
+from constants import constants
 import logging
 
 logging.basicConfig(

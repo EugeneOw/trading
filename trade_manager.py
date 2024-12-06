@@ -1,10 +1,11 @@
 import logging
-import constants
+from constants import constants
 import numpy as np
-from skopt import gp_minimize
+from collections import namedtuple
+from skopt import gp_minimize, Optimizer
 import telebot
 import requests
-import api_key_extractor
+from api_key_extractor import api_key_extractor
 from financial_instruments import macd
 import matplotlib
 import random
@@ -43,12 +44,25 @@ class TrainingAgent:
 
     @staticmethod
     def gaussian_process(tele_handler):
-        return gp_minimize(
-            func=lambda params: TrainingAgent.objective(params, tele_handler),
-            dimensions=TrainingAgent._parameters,
-            n_calls=TrainingAgent._number_of_calls,
-            random_state=TrainingAgent._random_state,
-            verbose=0)
+        optimizer = Optimizer(dimensions=TrainingAgent._parameters,
+                              random_state=TrainingAgent._random_state)
+        for call in range(TrainingAgent._number_of_calls):
+            params = optimizer.ask()
+            reward = TrainingAgent.objective(params)
+            optimizer.tell(params, reward)
+            tele_handler.send_message(
+                f"Iteration {call + 1}/{TrainingAgent._number_of_calls}\n"
+                f"Parameters: {params}\n"
+                f"Reward: {-reward}\n"
+            )
+        best_idx = np.argmin(optimizer.yi)
+        best_params = optimizer.Xi[best_idx]
+        best_value = optimizer.yi[best_idx]
+
+        Result = namedtuple("Result", ["x", "fun", "xi", "yi"])
+        result = Result(x=best_params, fun=best_value, xi=optimizer.Xi, yi=optimizer.yi)
+
+        return result, best_params
 
     def build_graphs(self, result):
         training_agent = Trainer(result.x)
@@ -60,7 +74,13 @@ class TrainingAgent:
                                           self._number_of_calls)
 
     @staticmethod
-    def review_summary(tele_handler, result):
+    def review_summary(tele_handler, best_params):
+        parameter_names = ["alpha", "gamma", "epsilon", "decay", "macd threshold", "ema difference"]
+        best_params_message = "\n".join(
+            f"Best {name}:{value}" for name, value in zip(parameter_names, best_params)
+        )
+        tele_handler.send_message(f"Optimization complete!\n{best_params_message}")
+
         graph_names: list[str] = ["pair_plot", "line_plot"]
         for path in graph_names:
             image_path = f"/Users/eugen/Downloads/{path}.png"
@@ -70,24 +90,10 @@ class TrainingAgent:
             except FileNotFoundError or Exception:
                 tele_handler.send_message("Image file not found.")
 
-        message_map: dict = {
-            "alpha ": result.x[0],
-            "gamma ": result.x[1],
-            "epsilon ": result.x[2],
-            "decay ": int(result.x[3]),
-            "macd threshold ": result.x[4],
-            "ema difference ": result.x[5],
-        }
-
-        for key, value in message_map.items():
-            tele_handler.send_message(f"Best {key}:{value}")
-
     @classmethod
-    def objective(cls, parameters, tele_handler):
+    def objective(cls, parameters):
         training_agent = Trainer(parameters)
         reward = training_agent.train()
-        TrainingAgent._call_count = TrainingAgent._call_count + 1
-        tele_handler.send_message(f"Call: {TrainingAgent._call_count}/{TrainingAgent._number_of_calls}")
         return -reward
 
 
@@ -140,7 +146,8 @@ class Trainer(TrainingAgent):
                                                                    next_state_index,
                                                                    action_index,
                                                                    reward)
-            self.reward_history.append(episode_reward)
+            self.reward_history.append(episode_reward*-1)
+            total_reward += episode_reward
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
         return total_reward
@@ -197,14 +204,12 @@ class Notifier(TeleBotManager):
 if __name__ == "__main__":
     telebot = TeleBotManager().connect_tele_bot()
 
-
     @telebot.message_handler(commands=['train'])
     def train_model(message):
         tele_handler = Notifier(telebot, message)
         tele_handler.send_message("Training...")
-        result = TrainingAgent().gaussian_process(tele_handler)
+        result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
-        TrainingAgent().review_summary(tele_handler, result)
-
+        TrainingAgent().review_summary(tele_handler,  best_params)
 
     telebot.infinity_polling()
