@@ -1,5 +1,6 @@
-from constants import constants
 import logging
+from constants import constants
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,12 +13,22 @@ class StateManager:
     def __init__(self, macd_threshold, ema_difference):
         self._macd_threshold = macd_threshold
         self._ema_difference = ema_difference
+        self.ema_period_1 = constants.EMA_PERIODS[0]
+        self.ema_period_2 = constants.EMA_PERIODS[1]
 
     def define_state(self, row_content):
+        """
+        Defines the state of each row.
+
+        :param row_content: Contains details of row
+
+        :return: Returns a string containing action
+        :rtype: str
+        """
         try:
             macd = row_content['MACD']
-            ema_12 = row_content['EMA 12']
-            ema_26 = row_content['EMA 26']
+            ema_12 = row_content[f'EMA {self.ema_period_1}']
+            ema_26 = row_content[f'EMA {self.ema_period_2}']
             signal = row_content['Signal Line']
 
             if (macd > (signal-self._macd_threshold)) and (ema_12 > (ema_26 - self._macd_threshold)):

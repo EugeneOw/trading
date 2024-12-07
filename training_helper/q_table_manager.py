@@ -1,6 +1,7 @@
+import logging
 import numpy as np
 from constants import constants
-import logging
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,15 +17,33 @@ class QTableManager:
 
     @staticmethod
     def create_q_table():
+        """
+        Creates an empty (all zeroes) q_table of size (available states) by (available actions).
+        :return:
+        """
         return np.zeros((len(constants.STATE_MAP), len(constants.AVAILABLE_ACTIONS)))
 
     def update_q_table(self, q_table, current_state_index, next_state_index, action_index, reward):
         """
+        Updates the q_table based on q-learning formula.
+
         :param q_table: Updates q_table based on q-learning update rule
-        :param current_state_index: Current state index
-        :param next_state_index: Next state row
-        :param action_index: Current choice of current_action
-        :param reward: Reward
+        :type q_table: numpy array
+
+        :param current_state_index: Current row's state as an index (based on constants.STATE_MAP)
+        :type current_state_index: str
+
+        :param next_state_index: Next row's state as an index
+        :type next_state_index: str
+
+        :param action_index: Current action as an index (based on constants.AVAILABLE_ACTIONS)
+        :type action_index: int
+
+        :param reward: Reward (Positive or negative) based on whether correct choice was made
+        :type reward: float
+
+        :param q_table: Updated q_table based on q-learning formula
+        :rtype q_table: numpy array
         """
         try:
             current_q_value = q_table[current_state_index, action_index]

@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+from constants import constants
 
 logging.basicConfig(
     level=logging.INFO,
@@ -11,12 +12,12 @@ file_path: str = '/Users/eugen/Documents/GitHub/trading/forex_data/dataset.csv'
 
 class EMA:
     def __init__(self):
-        self.ema_periods = [12, 26]  # Change calculate_macd as well.
+        self.ema_periods = constants.EMA_PERIODS
         self.dataset = pd.read_csv(file_path)
 
     def calculate_ema(self):
         """
-        Performs EMA 12 & EMA 26 calculation.
+        Performs ema calculation.
         :return: Returns an updated csv file with new rows of respective EMA periods.
         :rtype: self.dataset: Dataframe
         """

@@ -3,6 +3,7 @@ class CalculateReward:
     def calculate_reward(current_row_content, next_row_content, current_action):
         """
         Calculates the reward for selecting correct or wrong decisions.
+        But has a default penalty for holding.
 
         :param current_row_content: Contains initial content
         :type current_row_content: Dataframe
@@ -14,7 +15,7 @@ class CalculateReward:
         :type current_action: string
 
         :return: return positive or negative profit
-        :rtype: double
+        :rtype: float
         """
         current_price = current_row_content['Mid Price']
         next_price = next_row_content['Mid Price']

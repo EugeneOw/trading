@@ -23,6 +23,19 @@ class PairPlotManager:
         self.episode_reward = None
 
     def store_parameter_pair_plot(self, total_reward, iterated_values):
+        """
+        Creates (if !exists) and updates a dictionary(iterated_values) that contains all the parameters used in the
+        training and the final reward (total_reward).
+
+        :param total_reward: Contains the final reward value calculated and cumulated at the end of every call.
+        :type total_reward: float
+
+        :param iterated_values: Contains all parameters and final reward.
+        :type iterated_values: dict
+
+        :return: iterated_values: Returns the dictionary back to training agent to update for next cycle.
+        :rtype: iterated_values: dict
+        """
         try:
             for key, value in {
                 'alpha': self.alpha,
@@ -46,6 +59,15 @@ class PairPlotManager:
 
     @staticmethod
     def build_pair_plot(all_iterated_values):
+        """
+        Builds and saves a pair-plot diagram that shows how different parameters affect other parameters and more
+        importantly the final objective (total_reward)
+
+        :param all_iterated_values: Contains all parameters (of that call) and its final reward (total_reward).
+        :type all_iterated_values: dict
+
+        :return: None
+        """
         pair_plot_diagram = pd.DataFrame(all_iterated_values)
         sns.pairplot(pair_plot_diagram)
         current_time = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
@@ -58,6 +80,20 @@ class PairPlotManager:
 class LinePlotManager:
     @staticmethod
     def build_line_plot(all_rewards, no_of_episodes, no_of_calls):
+        """
+        Builds and saves a line plot that shows how the reward (per episode) changes as training goes on.
+        :param all_rewards: Contains all the rewards
+        :type all_rewards: list[float]
+
+        :param no_of_episodes: Contains the number of episodes
+        :type no_of_episodes: int
+
+        :param no_of_calls: Contains the number of calls made
+        :type no_of_calls: int
+
+        :return: None
+        """
+
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
                  all_rewards,

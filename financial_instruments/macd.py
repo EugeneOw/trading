@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+from constants import constants
 from financial_instruments import ema
 
 logging.basicConfig(
@@ -12,6 +13,8 @@ logging.basicConfig(
 class MACD:
     def __init__(self):
         self.dataset = ema.EMA().calculate_ema()
+        self.ema_period_1 = constants.EMA_PERIODS[0]
+        self.ema_period_2 = constants.EMA_PERIODS[1]
 
     def calculate_macd(self):
         """
@@ -20,7 +23,7 @@ class MACD:
         :rtype: self.dataset: Dataframe
         """
         try:
-            self.dataset[f'MACD'] = self.dataset['EMA 12'] - self.dataset['EMA 26']
+            self.dataset[f'MACD'] = self.dataset[f'EMA {self.ema_period_1}'] - self.dataset[f'EMA {self.ema_period_1}']
             self.dataset[f'Signal Line'] = (self.dataset['MACD'].ewm(
                 span=9,
                 adjust=False).mean())
