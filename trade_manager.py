@@ -1,16 +1,15 @@
 
+import time
 import random
 import telebot
-import requests
-import logging
-import threading
 import matplotlib
+import logging
 import numpy as np
+from telebot_manager import telebot_manager
 from skopt import Optimizer
 from constants import constants
 from collections import namedtuple
 from financial_instruments import macd
-from api_key_extractor import api_key_extractor
 from training_helper import calculate_reward, graph_manager, q_table_manager, state_manager
 
 matplotlib.use('Agg')
@@ -25,13 +24,15 @@ class TrainingAgent:
         (-1.0,    1.00),
         (-1.0, 0.00),
     ]
-    _number_of_episodes: int = 15
+    _number_of_episodes: int = 5
     _call_count: int = 0
-    _number_of_calls: int = 50
-    _number_of_omitted_rows: int = 1
+    _number_of_calls: int = 30
+    _number_of_omitted_rows: int = 700000
     _random_state: int = 42
     _iterated_values: dict = {}
     _reward_history: list = []
+    current_status: list = []
+    current_episode: int = 0
 
     def __init__(self):
         __macd = macd.MACD()
@@ -65,11 +66,16 @@ class TrainingAgent:
             params = optimizer.ask()
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
+            formatted_params = [
+                f"Best {name}   {value:.3f}" for name, value in zip(constants.PARAMETERS_NAME, params)
+            ]
+            formatted_params = "\n".join(formatted_params)
             tele_handler.send_message(
-                f"Iteration {call + 1}/{TrainingAgent._number_of_calls}\n"
-                f"Parameters: {params}\n"
-                f"Reward: {reward}\n"
+                f"Iteration   {call + 1}/{TrainingAgent._number_of_calls}\n"
+                f"{formatted_params}\n"
+                f"Reward   {-reward}\n"
             )
+
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
@@ -117,9 +123,8 @@ class TrainingAgent:
         :param best_params: The best parameters found during optimization
         :return: None
         """
-        parameter_names = ["alpha", "gamma", "epsilon", "decay", "macd threshold", "ema difference"]
         best_params_message = "\n".join(
-            f"Best {name}:{value}" for name, value in zip(parameter_names, best_params)
+            f"Best {name}:{value}" for name, value in zip(constants.PARAMETERS_NAME, best_params)
         )
         tele_handler.send_message(f"Optimization complete!\n{best_params_message}")
 
@@ -170,16 +175,24 @@ class Trainer(TrainingAgent):
         :return: The total reward accumulated over all episodes.
         """
         total_reward = 0
+        start_time = time.time()
         for episode in range(self.number_of_episodes):
+            TrainingAgent.current_episode = episode
             episode_reward = 0
+            previous_row_content = None
+            previous_state_index = None
             for row_index in range(len(self.dataset) - self.n_of_omitted_rows):
                 # Get state of current row
-                current_row_content = self.dataset.iloc[row_index]
-                current_state_index = self.state_handler.define_state(current_row_content)
+                if previous_row_content is not None and previous_state_index is not None:
+                    current_row_content, current_state_index = previous_row_content, previous_state_index
+                else:
+                    current_row_content = self.dataset.iloc[row_index]
+                    current_state_index = self.state_handler.define_state(current_row_content)
 
                 # Get state of next row
                 next_row_content = self.dataset.iloc[row_index + 1]
                 next_state_index = self.state_handler.define_state(next_row_content)
+                previous_row_content, previous_state_index = next_row_content, next_state_index
 
                 # Choose course of action
                 if random.uniform(0, 1) < self.epsilon:
@@ -201,6 +214,7 @@ class Trainer(TrainingAgent):
             total_reward += episode_reward
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
+        logging.info(f"Time taken per episode {time.time()-start_time}")
         return total_reward
 
     @property
@@ -222,65 +236,9 @@ class Trainer(TrainingAgent):
         return self.line_plot_handler
 
 
-class TeleBotManager:
-    def __init__(self):
-        self.api_key = self.get_api_key()
-        self.polling_thread = None
-
-    @staticmethod
-    def get_api_key():
-        """
-        Gets api_key from APIKeyExtractor
-        :return: api key
-        :rtype: str
-        """
-        api_key = api_key_extractor.APIKeyExtractor()
-        api_key = api_key.extract_api_key()
-        return api_key
-
-    def connect_tele_bot(self):
-        """
-        Attempts to connect to telegram bot.
-
-        :return: Synchronous class for telegram bot.
-        :rtype: Synchronous class
-        """
-        try:
-            return telebot.TeleBot(self.api_key)
-        except ValueError as e:
-            logging.error("Invalid token {e]", e)
-        except telebot.apihelper.ApiException as e:
-            logging.error("Invalid token or connection error", e)
-        except requests.exceptions.ConnectionError as e:
-            logging.error("Network error:", e)
-
-
-class Notifier(TeleBotManager):
-    def __init__(self, t_bot, msgs):
-        super().__init__()
-        self.telebot = t_bot
-        self.chat_id = msgs.chat.id
-
-    def send_message(self, message):
-        """
-        Sends message to specific chat using Telegram bot
-        :param message: The message to be sent
-        :return: The result of the Telebot send_message method
-        """
-        return self.telebot.send_message(self.chat_id, message)
-
-    def send_photo(self, photo, message):
-        """
-        Sends photo to the specific chat using Telegram bot
-        :param photo: The image to be sent
-        :param message: The message to be sent
-        :return: The result of the Telebot send_photo method
-        """
-        return self.telebot.send_photo(self.chat_id, photo, caption=message)
-
-
 if __name__ == "__main__":
-    telebot = TeleBotManager().connect_tele_bot()
+    tele_bot = telebot_manager.TeleBotManager()
+    telebot = tele_bot.connect_tele_bot()
 
     @telebot.message_handler(commands=['train'])
     def train_model(message):
@@ -290,8 +248,8 @@ if __name__ == "__main__":
         :param message: Message object containing details of the '/train' command
         :return: None
         """
-        tele_handler = Notifier(telebot, message)
-        tele_handler.send_message("Training")
+        tele_handler = telebot_manager.Notifier(telebot, message)
+        tele_handler.send_message("Initiating training")
         result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler,  best_params)
