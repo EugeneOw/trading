@@ -1,18 +1,16 @@
-
+import os
 import time
 import random
 import telebot
-import websocket
 import matplotlib
 import logging
+from database_manager import database_manager
 import numpy as np
-import thread
-import yfinance as yf
-from telebot_manager import telebot_manager
 from skopt import Optimizer
 from constants import constants
 from collections import namedtuple
 from financial_instruments import macd
+from telebot_manager import telebot_manager
 from training_helper import calculate_reward, graph_manager, q_table_manager, state_manager
 
 matplotlib.use('Agg')
@@ -27,10 +25,10 @@ class TrainingAgent:
         (-1.0,    1.00),
         (-1.0, 0.00),
     ]
-    _number_of_episodes: int = 5
+    _number_of_episodes: int = 1
     _call_count: int = 0
-    _number_of_calls: int = 30
-    _number_of_omitted_rows: int = 700000
+    _number_of_calls: int = 10
+    _number_of_omitted_rows: int = 810001  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
     _reward_history: list = []
@@ -99,7 +97,7 @@ class TrainingAgent:
         :rtype: float
         """
         training_agent = Trainer(parameters)
-        reward = training_agent.train()
+        reward, q_table = training_agent.train()  # q_table needed only for optimize
         return -reward
 
     def build_graphs(self, result):
@@ -131,12 +129,17 @@ class TrainingAgent:
         )
         tele_handler.send_message(f"Optimization complete!\n{best_params_message}")
 
-        graph_names: list[str] = ["pair_plot", "line_plot"]
-        for path in graph_names:
-            image_path = f"/Users/eugen/Downloads/{path}.png"
+        graph_names: list[str] = ["pair plot", "line plot"]
+        db_file = os.path.abspath(constants.PATH_DB)
+        db_handler = database_manager.DBManager(db_file)
+        file_path_manager = database_manager.FilePathManager(db_file)
+        file_path = file_path_manager.fetch_file_path(1)
+
+        for graph in graph_names:
+            image_path = f"{file_path}{graph}.png"
             try:
                 with open(image_path, 'rb') as photo:
-                    tele_handler.send_photo(photo, {path})
+                    tele_handler.send_photo(photo, {graph})
             except FileNotFoundError or Exception:
                 tele_handler.send_message("Image file not found.")
 
@@ -159,7 +162,7 @@ class Trainer(TrainingAgent):
                                                                self.decay,
                                                                self.macd_threshold,
                                                                self.ema_difference)
-        self.line_plot_handler = graph_manager.LinePlotManager
+        self.line_plot_handler = graph_manager.LinePlotManager()
 
     def train(self):
         """
@@ -218,7 +221,7 @@ class Trainer(TrainingAgent):
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
         logging.info(f"Time taken per episode {time.time()-start_time}")
-        return total_reward
+        return total_reward, self.q_table
 
     @property
     def get_pair_plot_handler(self):
@@ -257,9 +260,17 @@ if __name__ == "__main__":
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler,  best_params)
 
-    @telebot.message_handler(commands=['test'])
+    @telebot.message_handler(commands=['optimize'])
     def test_model(message):
+        """Utilizes optimize parameters to get optimize q-table"""
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Initiating testing")
-        TestingAgent().display()
+        tele_handler.send_message("Initiating optimizing")
+        reward, q_table = Trainer(constants.OPTIMIZE_PARAMETERS).train()  # reward needed only for training
+
+        db_file = os.path.abspath(constants.Q_TABLE_DB)
+        database_manager.DBManager(db_file)
+        q_table_db_manager = database_manager.QTableManager(db_file)
+        q_table_db_manager.q_table_operation(q_table)
+        logging.info(f"q_table: {q_table_db_manager.read_q_table()}")
+
     telebot.infinity_polling()

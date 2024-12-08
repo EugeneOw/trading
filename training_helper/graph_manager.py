@@ -1,9 +1,11 @@
 import logging
+from database_manager import database_manager
 import pandas as pd
+import os
+from constants import constants
 import seaborn as sns
 from datetime import datetime
 import matplotlib.pyplot as plt
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,8 +14,16 @@ logging.basicConfig(
 )
 
 
-class PairPlotManager:
+class GraphManager:
+    def __init__(self):
+        self.db_file = os.path.abspath(constants.PATH_DB)
+        database_manager.DBManager(self.db_file)
+        self.file_path_manager = database_manager.FilePathManager(self.db_file)
+
+
+class PairPlotManager(GraphManager):
     def __init__(self, alpha, gamma, epsilon, decay, macd_threshold, ema_difference):
+        super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
@@ -54,11 +64,8 @@ class PairPlotManager:
             logging.error(f"AttributeError: {e} - Ensure self.iterated_parameters is initialized as a dictionary.")
         except TypeError as e:
             logging.error(f"TypeError: {e} - Ensure self.iterated_parameters[key] is a list before calling append.")
-        except Exception as e:
-            logging.error(f"Unexpected error occurred while updating iterated_parameters for {key}: {e}")
 
-    @staticmethod
-    def build_pair_plot(all_iterated_values):
+    def build_pair_plot(self, all_iterated_values):
         """
         Builds and saves a pair-plot diagram that shows how different parameters affect other parameters and more
         importantly the final objective (total_reward)
@@ -74,12 +81,15 @@ class PairPlotManager:
         title = f"Pair Plot - Created on {current_time}"
         plt.suptitle(title, y=0.98, fontsize=14)
         plt.figtext(0.5, 0.95,  "", ha='center', fontsize=12, color='grey')
-        plt.savefig("/Users/eugen/Downloads/pair_plot.png")
+        file_path = self.file_path_manager.fetch_file_path(1)
+        plt.savefig(f"{file_path}/pair plot.png")
 
 
-class LinePlotManager:
-    @staticmethod
-    def build_line_plot(all_rewards, no_of_episodes, no_of_calls):
+class LinePlotManager(GraphManager):
+    def __init__(self):
+        super().__init__()
+
+    def build_line_plot(self, all_rewards, no_of_episodes, no_of_calls):
         """
         Builds and saves a line plot that shows how the reward (per episode) changes as training goes on.
         :param all_rewards: Contains all the rewards
@@ -93,7 +103,6 @@ class LinePlotManager:
 
         :return: None
         """
-
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
                  all_rewards,
@@ -106,4 +115,6 @@ class LinePlotManager:
         plt.ylabel('Objective Value')
         plt.grid(True)
         plt.legend()
-        plt.savefig("/Users/eugen/Downloads/line_plot.png")
+
+        file_path = self.file_path_manager.fetch_file_path(1)
+        plt.savefig(f"{file_path}/line plot.png")
