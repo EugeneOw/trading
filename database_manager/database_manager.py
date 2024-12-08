@@ -69,18 +69,32 @@ class QTableManager(DBManager):
             conn.commit()
 
     def update_q_table(self, serialized_q_table):
+        """Updates q_table (database) with updated q-table
+        :param serialized_q_table: serialized q-table
+        :return None
+        """
+
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('UPDATE q_table SET q_table = ? WHERE id = (SELECT id FROM q_table ORDER BY id DESC LIMIT 1)',serialized_q_table)
             conn.commit()
 
     def insert_q_table(self, serialized_q_table):
+        """
+        Inserts q-table into q_table (database)
+        :param serialized_q_table: serialized q-table
+        :return: None
+        """
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('INSERT INTO q_table (q_table) VALUES (?)',serialized_q_table)
             conn.commit()
 
     def read_q_table(self):
+        """
+        Reads 'q_table'.db and returns the most updated q-table
+        :return: Most updated q-table
+        """
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT q_table FROM q_table ORDER BY id DESC LIMIT 1')
