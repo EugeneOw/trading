@@ -2,9 +2,12 @@
 import time
 import random
 import telebot
+import websocket
 import matplotlib
 import logging
 import numpy as np
+import thread
+import yfinance as yf
 from telebot_manager import telebot_manager
 from skopt import Optimizer
 from constants import constants
@@ -254,4 +257,9 @@ if __name__ == "__main__":
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler,  best_params)
 
+    @telebot.message_handler(commands=['test'])
+    def test_model(message):
+        tele_handler = telebot_manager.Notifier(telebot, message)
+        tele_handler.send_message("Initiating testing")
+        TestingAgent().display()
     telebot.infinity_polling()
