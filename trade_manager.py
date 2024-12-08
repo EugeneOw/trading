@@ -17,23 +17,17 @@ matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    _parameters: list[tuple] = [
-        (0.00, 1.00),
-        (0.70, 1.00),
-        (-1.0, 0.10),
-        (1.00, 10.0),
-        (-1.0,    1.00),
-        (-1.0, 0.00),
-    ]
-    _number_of_episodes: int = 1
+    _parameters: constants.PARAMETERS_TRAINING
+    _number_of_episodes: constants.NO_OF_EPISODES
+    _number_of_calls: constants.NO_OF_CALLS
+    _number_of_omitted_rows: constants.OMITTED_ROWS
+    _random_state: constants.RANDOM_STATE
+
     _call_count: int = 0
-    _number_of_calls: int = 10
-    _number_of_omitted_rows: int = 810001  # Min 1
-    _random_state: int = 42
+    current_episode: int = 0
     _iterated_values: dict = {}
     _reward_history: list = []
     current_status: list = []
-    current_episode: int = 0
 
     def __init__(self):
         __macd = macd.MACD()
@@ -256,6 +250,7 @@ if __name__ == "__main__":
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating training")
+        tele_handler.send_message()
         result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler,  best_params)
@@ -271,6 +266,5 @@ if __name__ == "__main__":
         database_manager.DBManager(db_file)
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
-        logging.info(f"q_table: {q_table_db_manager.read_q_table()}")
 
     telebot.infinity_polling()
