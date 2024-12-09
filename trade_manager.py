@@ -1,9 +1,7 @@
 import os
-import time
 import random
 import telebot
 import matplotlib
-import logging
 from database_manager import database_manager
 import numpy as np
 from skopt import Optimizer
@@ -17,17 +15,10 @@ matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    _parameters: list[tuple] = [
-        (0.01, 1.00),
-        (0.50, 0.99),
-        (0.01, 1.0),
-        (0.001, 0.10),
-        (-1.0, 1.00),
-        (-1.0, 0.00),
-    ]
+    _parameters: list[tuple] = constants.PARAMETERS_TRAINING
     _number_of_episodes: int = 10
     _call_count: int = 0
-    _number_of_calls: int = 80
+    _number_of_calls: int = 1
     _number_of_omitted_rows: int = 1  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
@@ -38,21 +29,18 @@ class TrainingAgent:
     def __init__(self):
         __macd = macd.MACD()
         self.dataset = __macd.calculate_macd()
-
         self.state_to_index = {state: state for state in range(len(constants.STATE_MAP))}
-
         self.n_of_omitted_rows = TrainingAgent._number_of_omitted_rows
         self.number_of_episodes = TrainingAgent._number_of_episodes
         self.iterated_values = TrainingAgent._iterated_values
         self.reward_history = TrainingAgent._reward_history
 
     @staticmethod
-    def gaussian_process(tele_handler):
+    def gaussian_process():
         """
         Executes a Gaussian Process optimization to tune model parameters. This method optimizes a set of
         parameters using a Gaussian Process optimizer.
 
-        :param tele_handler: An instance of a handler to send messages through Telebot
         :return: A tuple containing:
             - result:
                 - x: The best parameters found.
@@ -67,16 +55,6 @@ class TrainingAgent:
             params = optimizer.ask()
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
-            formatted_params = [
-                f"Best {name}   {value:.3f}" for name, value in zip(constants.PARAMETERS_NAME, params)
-            ]
-            formatted_params = "\n".join(formatted_params)
-            tele_handler.send_message(
-                f"Iteration   {call + 1}/{TrainingAgent._number_of_calls}\n"
-                f"{formatted_params}\n"
-                f"Reward   {-reward}\n"
-            )
-
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
@@ -131,7 +109,6 @@ class TrainingAgent:
 
         graph_names: list[str] = ["pair plot", "line plot"]
         db_file = os.path.abspath(constants.PATH_DB)
-        db_handler = database_manager.DBManager(db_file)
         file_path_manager = database_manager.FilePathManager(db_file)
         file_path = file_path_manager.fetch_file_path(1)
 
@@ -149,8 +126,15 @@ class Trainer(TrainingAgent):
         super().__init__()
         self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold, self.ema_difference = parameters
         self.state_handler = state_manager.StateManager(self.macd_threshold,
-                                                        self.ema_difference)
-        self.reward_handler = calculate_reward.CalculateReward()
+                                                        self.ema_difference,
+                                                        self.epsilon)
+        self.instrument_weight = self.state_handler.create_weights()
+        self.current_selected_instrument = ""
+        self.next_selected_instrument = ""
+
+        self.reward_handler = calculate_reward.CalculateReward(self.macd_threshold,
+                                                               self.ema_difference,
+                                                               self.epsilon)
 
         self.q_table_handler = q_table_manager.QTableManager(self.alpha,
                                                              self.gamma)
@@ -186,39 +170,53 @@ class Trainer(TrainingAgent):
             episode_reward = 0
             previous_row_content = None
             previous_state_index = None
+
             for row_index in range(len(self.dataset) - self.n_of_omitted_rows):
                 # Get state of current row
                 if previous_row_content is not None and previous_state_index is not None:
+                    # Since previous row has already been identified, we don't have to look through data set again.
                     current_row_content, current_state_index = previous_row_content, previous_state_index
+                    self.current_selected_instrument = self.next_selected_instrument
                 else:
                     current_row_content = self.dataset.iloc[row_index]
-                    current_state_index = self.state_handler.define_state(current_row_content)
+                    current_state_index, self.current_selected_instrument = self.state_handler.define_state(
+                        current_row_content,
+                        self.instrument_weight)
 
                 # Get state of next row
                 next_row_content = self.dataset.iloc[row_index + 1]
-                next_state_index = self.state_handler.define_state(next_row_content)
+                next_state_index, self.next_selected_instrument = self.state_handler.define_state(
+                    next_row_content,
+                    self.instrument_weight)
                 previous_row_content, previous_state_index = next_row_content, next_state_index
 
                 # Choose course of action
                 if random.uniform(0, 1) < self.epsilon:
-                    if random.uniform(0,1) < 0.1:
-                        action_index = np.argmin(self.q_table[current_state_index])  # 10% chance to select lowest q-val
+                    if random.uniform(0, 1) < 0.1:
+                        # 10% chance to select lowest q-val
+                        action_index = np.argmin(self.q_table[current_state_index])
                     else:
                         action_index = random.choice(range(len(constants.AVAILABLE_ACTIONS)))
                 else:
                     action_index = np.argmax(self.q_table[current_state_index])
                 action = constants.AVAILABLE_ACTIONS[action_index]
 
-                reward = self.reward_handler.calculate_reward(current_row_content,
-                                                              next_row_content,
-                                                              action)
+                # Calculates reward based on chosen action
+                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content,
+                                                                                         next_row_content,
+                                                                                         action,
+                                                                                         self.instrument_weight,
+                                                                                         self.current_selected_instrument,
+                                                                                         self.next_selected_instrument)
+                self.instrument_weight = updated_instrument_weight
+
                 episode_reward += reward
                 self.q_table = self.q_table_handler.update_q_table(self.q_table,
                                                                    current_state_index,
                                                                    next_state_index,
                                                                    action_index,
                                                                    reward)
-            self.reward_history.append(episode_reward*-1)
+            self.reward_history.append(episode_reward)
             total_reward += episode_reward
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
@@ -247,6 +245,7 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
+
     @telebot.message_handler(commands=['optimize'])
     def train_model(message):
         """
@@ -257,9 +256,10 @@ if __name__ == "__main__":
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating optimizing.")
-        result, best_params = TrainingAgent().gaussian_process(tele_handler)
+        result, best_params = TrainingAgent().gaussian_process()
         TrainingAgent().build_graphs(result)
-        TrainingAgent().review_summary(tele_handler,  best_params)
+        TrainingAgent().review_summary(tele_handler, best_params)
+
 
     @telebot.message_handler(commands=['train'])
     def test_model(message):
@@ -274,4 +274,5 @@ if __name__ == "__main__":
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
 
-    telebot.infinity_polling(timeout=999, logger_level=None)
+
+    telebot.infinity_polling()
