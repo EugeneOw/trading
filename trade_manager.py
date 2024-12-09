@@ -16,15 +16,14 @@ matplotlib.use('Agg')
 
 class TrainingAgent:
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
-    _number_of_episodes: int = 10
+    _number_of_episodes: int = 1
     _call_count: int = 0
     _number_of_calls: int = 1
     _number_of_omitted_rows: int = 1  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
     _reward_history: list = []
-    current_status: list = []
-    current_episode: int = 0
+    _outcome_book: list[int] = []
 
     def __init__(self):
         __macd = macd.MACD()
@@ -34,7 +33,7 @@ class TrainingAgent:
         self.number_of_episodes = TrainingAgent._number_of_episodes
         self.iterated_values = TrainingAgent._iterated_values
         self.reward_history = TrainingAgent._reward_history
-
+        self._outcome_book = TrainingAgent._outcome_book
     @staticmethod
     def gaussian_process():
         """
@@ -89,9 +88,12 @@ class TrainingAgent:
         pair_plot_handler = training_agent.get_pair_plot_handler
         pair_plot_handler.build_pair_plot(self.iterated_values)
         line_plot_handler = training_agent.get_line_plot_handler
-        line_plot_handler.build_line_plot(self.reward_history,
+        '''line_plot_handler.build_line_plot(self.reward_history,
                                           self.number_of_episodes,
-                                          self._number_of_calls)
+                                          self._number_of_calls)'''
+        line_plot_handler.build_line_plot(self._outcome_book,
+                                          [0,1],
+                                          len(self.dataset))
 
     @staticmethod
     def review_summary(tele_handler, best_params):
@@ -166,7 +168,6 @@ class Trainer(TrainingAgent):
         """
         total_reward = 0
         for episode in range(self.number_of_episodes):
-            TrainingAgent.current_episode = episode
             episode_reward = 0
             previous_row_content = None
             previous_state_index = None
@@ -202,13 +203,15 @@ class Trainer(TrainingAgent):
                 action = constants.AVAILABLE_ACTIONS[action_index]
 
                 # Calculates reward based on chosen action
-                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content,
+                reward, updated_instrument_weight, updated_outcome_book = self.reward_handler.calculate_reward(current_row_content,
                                                                                          next_row_content,
                                                                                          action,
                                                                                          self.instrument_weight,
                                                                                          self.current_selected_instrument,
-                                                                                         self.next_selected_instrument)
+                                                                                         self.next_selected_instrument,
+                                                                                         self._outcome_book)
                 self.instrument_weight = updated_instrument_weight
+                self._outcome_book = updated_outcome_book
 
                 episode_reward += reward
                 self.q_table = self.q_table_handler.update_q_table(self.q_table,
