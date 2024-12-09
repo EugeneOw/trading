@@ -31,12 +31,12 @@ class StateManager:
             ema_26 = row_content[f'EMA {self.ema_period_2}']
             signal = row_content['Signal Line']
 
-            if (macd > (signal-self._macd_threshold)) and (ema_12 > (ema_26 - self._macd_threshold)):
+            if (macd > (signal-self._macd_threshold)) and ((ema_12 - ema_26) > self._ema_difference):
                 return constants.STATE_MAP[constants.AVAILABLE_ACTIONS[0]]  # Buy
-            elif (macd < (signal - self._macd_threshold)) and (ema_12 < (ema_26 - self._macd_threshold)):
-                return constants.STATE_MAP[constants.AVAILABLE_ACTIONS[0]]  # Sell
+            elif (macd < (signal - self._macd_threshold)) and ((ema_12 - ema_26) < self._ema_difference):
+                return constants.STATE_MAP[constants.AVAILABLE_ACTIONS[1]]  # Sell
             else:
-                return constants.STATE_MAP[constants.AVAILABLE_ACTIONS[0]]  # Hold
+                return constants.STATE_MAP[constants.AVAILABLE_ACTIONS[2]]  # Hold
         except KeyError:
             logging.error("Row doesn't exists")
         except IndexError:

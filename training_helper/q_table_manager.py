@@ -54,7 +54,7 @@ class QTableManager:
         except IndexError as e:
             logging.error(f"IndexError at state index={current_state_index}, current_action={action_index}: {e}")
         except ValueError as e:
-            logging.error("ValueError with reward, gamma, or q_table values: ",e)
+            logging.error("ValueError with reward, gamma, or q_table values: ", e)
         except TypeError as e:
             logging.error("TypeError: ", e)
         except AttributeError as e:

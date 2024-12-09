@@ -17,17 +17,23 @@ matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    _parameters: constants.PARAMETERS_TRAINING
-    _number_of_episodes: constants.NO_OF_EPISODES
-    _number_of_calls: constants.NO_OF_CALLS
-    _number_of_omitted_rows: constants.OMITTED_ROWS
-    _random_state: constants.RANDOM_STATE
-
+    _parameters: list[tuple] = [
+        (0.01, 1.00),
+        (0.50, 0.99),
+        (0.01, 1.0),
+        (0.001, 0.10),
+        (-1.0, 1.00),
+        (-1.0, 0.00),
+    ]
+    _number_of_episodes: int = 10
     _call_count: int = 0
-    current_episode: int = 0
+    _number_of_calls: int = 80
+    _number_of_omitted_rows: int = 1  # Min 1
+    _random_state: int = 42
     _iterated_values: dict = {}
     _reward_history: list = []
     current_status: list = []
+    current_episode: int = 0
 
     def __init__(self):
         __macd = macd.MACD()
@@ -175,7 +181,6 @@ class Trainer(TrainingAgent):
         :return: The total reward accumulated over all episodes.
         """
         total_reward = 0
-        start_time = time.time()
         for episode in range(self.number_of_episodes):
             TrainingAgent.current_episode = episode
             episode_reward = 0
@@ -196,7 +201,10 @@ class Trainer(TrainingAgent):
 
                 # Choose course of action
                 if random.uniform(0, 1) < self.epsilon:
-                    action_index = random.choice(range(len(constants.AVAILABLE_ACTIONS)))
+                    if random.uniform(0,1) < 0.1:
+                        action_index = np.argmin(self.q_table[current_state_index])  # 10% chance to select lowest q-val
+                    else:
+                        action_index = random.choice(range(len(constants.AVAILABLE_ACTIONS)))
                 else:
                     action_index = np.argmax(self.q_table[current_state_index])
                 action = constants.AVAILABLE_ACTIONS[action_index]
@@ -214,7 +222,6 @@ class Trainer(TrainingAgent):
             total_reward += episode_reward
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
-        logging.info(f"Time taken per episode {time.time()-start_time}")
         return total_reward, self.q_table
 
     @property
@@ -240,7 +247,7 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
-    @telebot.message_handler(commands=['train'])
+    @telebot.message_handler(commands=['optimize'])
     def train_model(message):
         """
         Handles the '/train' command to initiate the training process for the model.
@@ -249,22 +256,22 @@ if __name__ == "__main__":
         :return: None
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Initiating training")
-        tele_handler.send_message()
+        tele_handler.send_message("Initiating optimizing.")
         result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler,  best_params)
 
-    @telebot.message_handler(commands=['optimize'])
+    @telebot.message_handler(commands=['train'])
     def test_model(message):
         """Utilizes optimize parameters to get optimize q-table"""
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Initiating optimizing")
+        tele_handler.send_message("Initiating training - Please await completion message.")
         reward, q_table = Trainer(constants.OPTIMIZE_PARAMETERS).train()  # reward needed only for training
-
+        tele_handler.send_message("Training done.")
+        tele_handler.send_table(q_table)
         db_file = os.path.abspath(constants.Q_TABLE_DB)
         database_manager.DBManager(db_file)
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
 
-    telebot.infinity_polling()
+    telebot.infinity_polling(timeout=999, logger_level=None)

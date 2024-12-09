@@ -1,7 +1,10 @@
-from api_key_extractor import api_key_extractor
 import telebot
 import requests
 import logging
+from constants import constants
+from prettytable import PrettyTable
+from api_key_extractor import api_key_extractor
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,3 +68,15 @@ class Notifier(TeleBotManager):
         :return: The result of the Telebot send_photo method
         """
         return self.telebot.send_photo(self.chat_id, photo, caption=message)
+
+    def send_table(self, q_table):
+        """
+        Sends q_table to the specific chat using Telegram bot
+        :param q_table: The q_table to be sent
+        :return: The result of the Telebot send_table method
+        """
+        table = PrettyTable()
+        table.field_names = ['States'] + constants.AVAILABLE_ACTIONS
+        for state, values in zip(constants.AVAILABLE_STATES, q_table.tolist()):
+            table.add_row([state] + values)
+        return self.telebot.send_message(self.chat_id, table)

@@ -23,7 +23,7 @@ class MACD:
         :rtype: self.dataset: Dataframe
         """
         try:
-            self.dataset[f'MACD'] = self.dataset[f'EMA {self.ema_period_1}'] - self.dataset[f'EMA {self.ema_period_1}']
+            self.dataset[f'MACD'] = self.dataset[f'EMA {self.ema_period_1}'] - self.dataset[f'EMA {self.ema_period_2}']
             self.dataset[f'Signal Line'] = (self.dataset['MACD'].ewm(
                 span=9,
                 adjust=False).mean())
