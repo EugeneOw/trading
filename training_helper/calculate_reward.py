@@ -1,6 +1,6 @@
 from training_helper import state_manager
 from constants import constants
-import logging
+
 
 class CalculateReward:
     def __init__(self, macd_threshold, ema_difference, epsilon):
@@ -9,7 +9,7 @@ class CalculateReward:
                                                         epsilon)
 
     def calculate_reward(self, current_row_content, next_row_content, current_action, instrument_weight,
-                         current_selected_instrument, next_selected_instrument, outcome_book):
+                         current_selected_instrument, next_selected_instrument):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
@@ -51,12 +51,11 @@ class CalculateReward:
             _outcome = 1
         else:
             _outcome = 0
-        outcome_book.append(_outcome)
         instrument_weight = self.state_handler.adjust_reward(instrument_weight,
                                                              current_selected_instrument,
                                                              next_selected_instrument, _outcome)
 
         if current_action == "Buy":
-            return next_price - current_price, instrument_weight, outcome_book
+            return next_price - current_price, instrument_weight
         else:
-            return current_price - next_price, instrument_weight, outcome_book
+            return current_price - next_price, instrument_weight

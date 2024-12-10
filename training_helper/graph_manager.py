@@ -104,14 +104,12 @@ class LinePlotManager(GraphManager):
         :return: None
         """
         plt.figure(figsize=(10, 6))
-        '''plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
+        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
                  all_rewards,
                  marker='o',
                  color='b',
                  linestyle='-',
-                 label='Objective')'''
-        x_values = list(range(len(all_rewards)))
-        plt.plot(all_rewards, 'o', markersize=0.01, color='blue')
+                 label='Objective')
         plt.title('Episode vs Objective Value')
         plt.xlabel('Episode')
         plt.ylabel('Objective Value')
