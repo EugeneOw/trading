@@ -16,9 +16,9 @@ matplotlib.use('Agg')
 
 class TrainingAgent:
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
-    _number_of_episodes: int = 1
+    _number_of_episodes: int = 5
     _call_count: int = 0
-    _number_of_calls: int = 1
+    _number_of_calls: int = 80
     _number_of_omitted_rows: int = 1  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
@@ -101,7 +101,7 @@ class TrainingAgent:
         :return: None
         """
         best_params_message = "\n".join(
-            f"Best {name}:{value}" for name, value in zip(constants.PARAMETERS_NAME, best_params)
+            f"Best {name} : {value}" for name, value in zip(constants.PARAMETERS_NAME, best_params)
         )
         tele_handler.send_message(f"Optimization complete!\n{best_params_message}")
 
@@ -122,17 +122,27 @@ class TrainingAgent:
 class Trainer(TrainingAgent):
     def __init__(self, parameters):
         super().__init__()
-        self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold, self.ema_difference = parameters
+        [self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold, self.ema_difference, self.max_gradient,
+         self.scaling_factor, self.gradient, self.midpoint] = parameters
         self.state_handler = state_manager.StateManager(self.macd_threshold,
                                                         self.ema_difference,
-                                                        self.epsilon)
+                                                        self.epsilon,
+                                                        self.max_gradient,
+                                                        self.scaling_factor,
+                                                        self.gradient,
+                                                        self.midpoint)
+
         self.instrument_weight = self.state_handler.create_weights()
         self.current_selected_instrument = ""
         self.next_selected_instrument = ""
 
         self.reward_handler = calculate_reward.CalculateReward(self.macd_threshold,
                                                                self.ema_difference,
-                                                               self.epsilon)
+                                                               self.epsilon,
+                                                               self.max_gradient,
+                                                               self.scaling_factor,
+                                                               self.gradient,
+                                                               self.midpoint)
 
         self.q_table_handler = q_table_manager.QTableManager(self.alpha,
                                                              self.gamma)
@@ -201,7 +211,9 @@ class Trainer(TrainingAgent):
                 # Calculates reward based on chosen action
                 reward, updated_instrument_weight = self.reward_handler.calculate_reward(
                     current_row_content, next_row_content, action,
-                    self.instrument_weight, self.current_selected_instrument, self.next_selected_instrument,)
+                    self.instrument_weight, self.current_selected_instrument, self.next_selected_instrument,
+                    episode, row_index)
+
                 self.instrument_weight = updated_instrument_weight
 
                 episode_reward += reward
@@ -239,6 +251,7 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
+
     @telebot.message_handler(commands=['optimize'])
     def train_model(message):
         """
@@ -253,6 +266,7 @@ if __name__ == "__main__":
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler, best_params)
 
+
     @telebot.message_handler(commands=['train'])
     def test_model(message):
         """Utilizes optimize parameters to get optimize q-table"""
@@ -261,9 +275,12 @@ if __name__ == "__main__":
         reward, q_table = Trainer(constants.OPTIMIZE_PARAMETERS).train()  # reward needed only for training
         tele_handler.send_message("Training done.")
         tele_handler.send_table(q_table)
+        tele_handler.send_message("Storing q-table.")
         db_file = os.path.abspath(constants.Q_TABLE_DB)
         database_manager.DBManager(db_file)
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
+        tele_handler.send_message("Done.")
+
 
     telebot.infinity_polling()

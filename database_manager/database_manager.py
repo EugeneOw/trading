@@ -50,7 +50,9 @@ class QTableManager(DBManager):
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS q_table (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                q_table BLOB)''')
+                q_table BLOB)
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                ''')
             conn.commit()
 
     def q_table_operation(self, q_table):
@@ -68,6 +70,17 @@ class QTableManager(DBManager):
                 self.insert_q_table(serialized_q_table)
             conn.commit()
 
+    def add_timestamp_column(self):
+        with sqlite3.connect(self.db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                    ALTER TABLE q_table ADD COLUMN timestamp DATETIME''')
+            cursor.execute('''
+                    UPDATE q_table
+                    SET timestamp = CURRENT_TIMESTAMP
+                    WHERE timestamp IS NULL''')
+            conn.commit()
+
     def update_q_table(self, serialized_q_table):
         """Updates q_table (database) with updated q-table
         :param serialized_q_table: serialized q-table
@@ -76,7 +89,10 @@ class QTableManager(DBManager):
 
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
-            cursor.execute('UPDATE q_table SET q_table = ? WHERE id = (SELECT id FROM q_table ORDER BY id DESC LIMIT 1)',serialized_q_table)
+            cursor.execute('''UPDATE q_table 
+                           SET q_table = ?, timestamp = CURRENT_TIMESTAMP
+                           WHERE id = (SELECT MAX(id) FROM q_table)
+                           ''', serialized_q_table)
             conn.commit()
 
     def insert_q_table(self, serialized_q_table):

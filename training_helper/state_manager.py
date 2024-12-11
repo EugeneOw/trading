@@ -1,5 +1,6 @@
 import logging
 import random
+import numpy as np
 from constants import constants
 
 logging.basicConfig(
@@ -10,10 +11,15 @@ logging.basicConfig(
 
 
 class StateManager:
-    def __init__(self, macd_threshold, ema_difference, epsilon):
+    def __init__(self, macd_threshold, ema_difference, epsilon, max_gradient, scaling_factor, gradient, midpoint):
         self._macd_threshold = macd_threshold
         self._ema_difference = ema_difference
         self.epsilon: float = epsilon
+
+        self.max_gradient = max_gradient
+        self.scaling_factor = scaling_factor
+        self.gradient = gradient
+        self.midpoint = midpoint
 
         self.constant_alpha = constants.constant_alpha
         self.state_map = constants.STATE_MAP
@@ -121,7 +127,22 @@ class StateManager:
             action = self.state_map[self.avail_actions[1]]
         return action, instrument
 
-    def adjust_reward(self, instrument_weight, current_selected_instrument, next_selected_instrument, outcome):
+    def dynamic_alpha(self, episode, row_index):
+        """
+        Calculates the dynamic alpha based on episode and call. Utilizes the sigmoid growth.
+        :param episode: Contains the number of which episode the training is currently at.
+        :type episode: int
+
+        :param row_index: Contains the index of the dataframe at which the training is currently at.
+        :type row_index: int
+
+        :return: Returns dynamic alpha for calculating reward/punishment
+        """
+        _sigmoid_component = self.scaling_factor / (1 + np.exp(-self.gradient * (episode - self.midpoint)))
+        _log_component = np.log(row_index + 1)
+        return min(_sigmoid_component * _log_component, self.max_gradient)
+
+    def adjust_reward(self, instrument_weight, current_selected_instrument, next_selected_instrument, outcome, episode, row_index):
         """
         Adjusts the table (instrument_weight) accordingly depending on whether it was a right (outcome: 1) or wrong
         decision (outcome:0)
@@ -137,15 +158,22 @@ class StateManager:
         :param outcome: Outcome of action, right (outcome: 1) and wrong (outcome:0)
         :type outcome: int
 
+        :param episode: Contains the number of which episode the training is currently at.
+        :type episode: int
+
+        :param row_index: Contains the index of the dataframe at which the training is currently at.
+        :type row_index: int
+
         :return: instrument_weight: List containing all the weights allocated to instruments
         :rtype: list[float]
         """
+
         _current_instrument_score = instrument_weight[current_selected_instrument]
         _next_instrument_score = instrument_weight[next_selected_instrument]
         if outcome == 0:
-            _constant = (1 - self.constant_alpha)
+            _constant = (1 - self.dynamic_alpha(episode, row_index))
         else:
-            _constant = (1 + self.constant_alpha)
+            _constant = (1 + self.dynamic_alpha(episode, row_index))
 
         instrument_weight[current_selected_instrument] = _current_instrument_score * _constant
         instrument_weight[next_selected_instrument] = _current_instrument_score * _constant

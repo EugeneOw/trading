@@ -3,13 +3,17 @@ from constants import constants
 
 
 class CalculateReward:
-    def __init__(self, macd_threshold, ema_difference, epsilon):
+    def __init__(self, macd_threshold, ema_difference, epsilon, max_gradient, scaling_factor, gradient, midpoint):
         self.state_handler = state_manager.StateManager(macd_threshold,
                                                         ema_difference,
-                                                        epsilon)
+                                                        epsilon,
+                                                        max_gradient,
+                                                        scaling_factor,
+                                                        gradient,
+                                                        midpoint)
 
     def calculate_reward(self, current_row_content, next_row_content, current_action, instrument_weight,
-                         current_selected_instrument, next_selected_instrument):
+                         current_selected_instrument, next_selected_instrument, episode, row_index):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
@@ -34,6 +38,12 @@ class CalculateReward:
         :return: return positive or negative profit
         :rtype: float
 
+        :param episode: Contains the number of which episode the training is currently at.
+        :type episode: int
+
+        :param row_index: Contains the index of the dataframe at which the training is currently at.
+        :type row_index: int
+
         :return: instrument_weight: Contains list of weights allocated to instruments
         :rtype: instrument_weight: list[float]
         """
@@ -53,7 +63,7 @@ class CalculateReward:
             _outcome = 0
         instrument_weight = self.state_handler.adjust_reward(instrument_weight,
                                                              current_selected_instrument,
-                                                             next_selected_instrument, _outcome)
+                                                             next_selected_instrument, _outcome, episode, row_index)
 
         if current_action == "Buy":
             return next_price - current_price, instrument_weight
