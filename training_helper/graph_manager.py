@@ -80,7 +80,7 @@ class PairPlotManager(GraphManager):
         current_time = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
         title = f"Pair Plot - Created on {current_time}"
         plt.suptitle(title, y=0.98, fontsize=14)
-        plt.figtext(0.5, 0.95,  "", ha='center', fontsize=12, color='grey')
+        plt.figtext(0.5, 0.95, "", ha='center', fontsize=12, color='grey')
         file_path = self.file_path_manager.fetch_file_path(1)
         plt.savefig(f"{file_path}/pair plot.png")
 
@@ -104,17 +104,12 @@ class LinePlotManager(GraphManager):
         :return: None
         """
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
-                 all_rewards,
-                 marker='o',
-                 color='b',
-                 linestyle='-',
-                 label='Objective')
-        plt.title('Episode vs Objective Value')
+        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards, marker='o', color='b', linestyle='-',
+                 label='Episode VS Objective (Reward)')
+        plt.title('Objective - Positive: Profits made, Negative: Lost made')
         plt.xlabel('Episode')
-        plt.ylabel('Objective Value')
+        plt.ylabel('Objective Reward')
         plt.grid(True)
         plt.legend()
-
         file_path = self.file_path_manager.fetch_file_path(1)
         plt.savefig(f"{file_path}/line plot.png")

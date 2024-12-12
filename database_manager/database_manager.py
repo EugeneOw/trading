@@ -1,8 +1,6 @@
-import os
 import pickle
-import sqlite3
 import logging
-from constants import constants
+import sqlite3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +27,6 @@ class FilePathManager(DBManager):
         :return: stored_path
         :rtype: str
         """
-        """Fetches file path from database."""
         with sqlite3.connect(self.db_file) as conn:  # Using 'with' ensures the connection is closed properly
             cursor = conn.cursor()
             cursor.execute('SELECT path FROM file_paths WHERE id = ?', (file_id,))

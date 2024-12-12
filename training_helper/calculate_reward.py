@@ -1,3 +1,5 @@
+import logging
+
 from training_helper import state_manager
 from constants import constants
 
@@ -13,7 +15,7 @@ class CalculateReward:
                                                         midpoint)
 
     def calculate_reward(self, current_row_content, next_row_content, current_action, instrument_weight,
-                         current_selected_instrument, next_selected_instrument, episode, row_index):
+                         current_instrument, next_instrument, episode, row_index):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
@@ -29,11 +31,11 @@ class CalculateReward:
         :param instrument_weight: List of instruments weight
         :type instrument_weight: List[float]
 
-        :param current_selected_instrument: Instrument selected for current row
-        :type current_selected_instrument: int
+        :param current_instrument: Instrument selected for current row
+        :type current_instrument: int
 
-        :param next_selected_instrument: Instrument selected for next row
-        :type next_selected_instrument: int
+        :param next_instrument: Instrument selected for next row
+        :type next_instrument: int
 
         :return: return positive or negative profit
         :rtype: float
@@ -57,15 +59,23 @@ class CalculateReward:
         if not isinstance(current_action, str):
             raise TypeError(f"'current_action' should be a string, got {type(current_action)}")
 
-        if current_action == constants.AVAILABLE_ACTIONS[0] and current_price < next_price:
+        _buy_and_increase = current_action == constants.AVAILABLE_ACTIONS[0] and current_price < next_price
+        _sell_and_decrease = current_action == constants.AVAILABLE_ACTIONS[1] and current_price > next_price
+        if _sell_and_decrease or _sell_and_decrease:
             _outcome = 1
         else:
             _outcome = 0
-        instrument_weight = self.state_handler.adjust_reward(instrument_weight,
-                                                             current_selected_instrument,
-                                                             next_selected_instrument, _outcome, episode, row_index)
 
-        if current_action == "Buy":
-            return next_price - current_price, instrument_weight
+        instrument_weight = self.state_handler.adjust_reward(instrument_weight,
+                                                             current_instrument,
+                                                             next_instrument,
+                                                             _outcome,
+                                                             episode,
+                                                             row_index)
+
+        if current_action == "Long":
+            reward = current_price - next_price
         else:
-            return current_price - next_price, instrument_weight
+            reward = next_price - current_price
+
+        return reward, instrument_weight

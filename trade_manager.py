@@ -2,13 +2,13 @@ import os
 import random
 import telebot
 import matplotlib
-from database_manager import database_manager
 import numpy as np
 from skopt import Optimizer
 from constants import constants
 from collections import namedtuple
 from financial_instruments import macd
 from telebot_manager import telebot_manager
+from database_manager import database_manager
 from training_helper import calculate_reward, graph_manager, q_table_manager, state_manager
 
 matplotlib.use('Agg')
@@ -34,7 +34,7 @@ class TrainingAgent:
         self.reward_history = TrainingAgent._reward_history
 
     @staticmethod
-    def gaussian_process():
+    def gaussian_process(tele_handler):
         """
         Executes a Gaussian Process optimization to tune model parameters. This method optimizes a set of
         parameters using a Gaussian Process optimizer.
@@ -53,6 +53,9 @@ class TrainingAgent:
             params = optimizer.ask()
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
+            tele_handler.send_message(
+                f"Iteration {call + 1}/{TrainingAgent._number_of_calls}\n"
+            )
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
@@ -133,8 +136,8 @@ class Trainer(TrainingAgent):
                                                         self.midpoint)
 
         self.instrument_weight = self.state_handler.create_weights()
-        self.current_selected_instrument = ""
-        self.next_selected_instrument = ""
+        self.current_instrument = ""
+        self.next_instrument = ""
 
         self.reward_handler = calculate_reward.CalculateReward(self.macd_threshold,
                                                                self.ema_difference,
@@ -181,20 +184,19 @@ class Trainer(TrainingAgent):
             for row_index in range(len(self.dataset) - self.n_of_omitted_rows):
                 # Get state of current row
                 if previous_row_content is not None and previous_state_index is not None:
+
                     # Since previous row has already been identified, we don't have to look through data set again.
                     current_row_content, current_state_index = previous_row_content, previous_state_index
-                    self.current_selected_instrument = self.next_selected_instrument
+                    self.current_instrument = self.next_instrument
                 else:
                     current_row_content = self.dataset.iloc[row_index]
-                    current_state_index, self.current_selected_instrument = self.state_handler.define_state(
-                        current_row_content,
-                        self.instrument_weight)
+                    current_state_index, self.current_instrument = self.state_handler.define_state(current_row_content,
+                                                                                                   self.instrument_weight)
 
                 # Get state of next row
                 next_row_content = self.dataset.iloc[row_index + 1]
-                next_state_index, self.next_selected_instrument = self.state_handler.define_state(
-                    next_row_content,
-                    self.instrument_weight)
+                next_state_index, self.next_instrument = self.state_handler.define_state(next_row_content,
+                                                                                         self.instrument_weight)
                 previous_row_content, previous_state_index = next_row_content, next_state_index
 
                 # Choose course of action
@@ -209,10 +211,14 @@ class Trainer(TrainingAgent):
                 action = constants.AVAILABLE_ACTIONS[action_index]
 
                 # Calculates reward based on chosen action
-                reward, updated_instrument_weight = self.reward_handler.calculate_reward(
-                    current_row_content, next_row_content, action,
-                    self.instrument_weight, self.current_selected_instrument, self.next_selected_instrument,
-                    episode, row_index)
+                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content,
+                                                                                         next_row_content,
+                                                                                         action,
+                                                                                         self.instrument_weight,
+                                                                                         self.current_instrument,
+                                                                                         self.next_instrument,
+                                                                                         episode,
+                                                                                         row_index)
 
                 self.instrument_weight = updated_instrument_weight
 
@@ -251,7 +257,6 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
-
     @telebot.message_handler(commands=['optimize'])
     def train_model(message):
         """
@@ -262,10 +267,9 @@ if __name__ == "__main__":
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating optimizing.")
-        result, best_params = TrainingAgent().gaussian_process()
+        result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler, best_params)
-
 
     @telebot.message_handler(commands=['train'])
     def test_model(message):
@@ -281,6 +285,5 @@ if __name__ == "__main__":
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
         tele_handler.send_message("Done.")
-
 
     telebot.infinity_polling()

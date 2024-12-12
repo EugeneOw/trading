@@ -21,7 +21,6 @@ class StateManager:
         self.gradient = gradient
         self.midpoint = midpoint
 
-        self.constant_alpha = constants.constant_alpha
         self.state_map = constants.STATE_MAP
         self.avail_instrument = constants.AVAILABLE_INSTRUMENTS
         self.avail_actions = constants.AVAILABLE_ACTIONS
@@ -142,18 +141,18 @@ class StateManager:
         _log_component = np.log(row_index + 1)
         return min(_sigmoid_component * _log_component, self.max_gradient)
 
-    def adjust_reward(self, instrument_weight, current_selected_instrument, next_selected_instrument, outcome, episode, row_index):
+    def adjust_reward(self, instrument_weight, current_instrument, next_instrument, outcome, episode, row_index):
         """
         Adjusts the table (instrument_weight) accordingly depending on whether it was a right (outcome: 1) or wrong
         decision (outcome:0)
         :param instrument_weight: List containing all the weights allocated to instruments
         :type instrument_weight: list[float]
 
-        :param current_selected_instrument: Currently selected instrument
-        :type current_selected_instrument: int
+        :param current_instrument: Currently selected instrument
+        :type current_instrument: int
 
-        :param next_selected_instrument: Next selected instrument
-        :type current_selected_instrument: int
+        :param next_instrument: Next selected instrument
+        :type current_instrument: int
 
         :param outcome: Outcome of action, right (outcome: 1) and wrong (outcome:0)
         :type outcome: int
@@ -167,14 +166,12 @@ class StateManager:
         :return: instrument_weight: List containing all the weights allocated to instruments
         :rtype: list[float]
         """
-
-        _current_instrument_score = instrument_weight[current_selected_instrument]
-        _next_instrument_score = instrument_weight[next_selected_instrument]
+        _current_instrument_score = instrument_weight[current_instrument]
+        _next_instrument_score = instrument_weight[next_instrument]
         if outcome == 0:
             _constant = (1 - self.dynamic_alpha(episode, row_index))
         else:
             _constant = (1 + self.dynamic_alpha(episode, row_index))
-
-        instrument_weight[current_selected_instrument] = _current_instrument_score * _constant
-        instrument_weight[next_selected_instrument] = _current_instrument_score * _constant
+        instrument_weight[current_instrument] = _current_instrument_score * _constant
+        instrument_weight[next_instrument] = _current_instrument_score * _constant
         return instrument_weight

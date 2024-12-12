@@ -1,8 +1,8 @@
 import os
 import logging
 from constants import constants
-from database_manager import database_manager
 from striprtf.striprtf import rtf_to_text
+from database_manager import database_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,9 +14,14 @@ logging.basicConfig(
 class APIKeyExtractor:
     def __init__(self):
         self.db_file = os.path.abspath(constants.PATH_DB)
+        self.rtf_file_path = self.file_path().fetch_file_path(2)
+
+    def file_path(self):
+        """
+        Initializes DBManager class
+        """
         database_manager.DBManager(self.db_file)
-        file_path_manager = database_manager.FilePathManager(self.db_file)
-        self.rtf_file_path = file_path_manager.fetch_file_path(2)
+        return database_manager.FilePathManager(self.db_file)
 
     def extract_api_key(self) -> str:
         """

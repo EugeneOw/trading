@@ -8,6 +8,15 @@ This repository contains the code for a trading agent that leverages reinforceme
 The system is designed to train a reinforcement learning agent to perform trades using historical forex data. The agent learns from the market data using indicators such as **MACD** and **EMA**, and optimizes its trading strategy based on reward maximization.
 
 ---
+#### New Features:
+- **Dynamic Indicator Weighting:**
+
+	Technical indicators are now dynamically weighted. Each indicator starts off equally weighted, which is adjusted over time based on its performance. Indicators are rewarded or penalized dynamically (Based on the Sigmoid function) to improve trading accuracy.
+
+- **Q-Table Persistence:**
+
+	The Q-table is now stored in an SQLite3 database. This allows the agent to save its learning progress and reuse the Q-table in subsequent runs.
+---
 ### Trading Strategy:
 The agent's trading strategy is based on a range of instruments such as:
 - **MACD** (Moving Average Convergence Divergence)
@@ -105,13 +114,20 @@ These indicators are used to determine market trends (Bullish, Bearish, or Neutr
 ### Example output: 
 
 ```
-Best alpha: 0.12
-Best gamma: 0.95
-Best epsilon: 0.85
-Best decay: 4
+Optimization complete!
+Best alpha : 1.0
+Best gamma : 0.7
+Best epsilon : 0.1
+Best decay : 1.0
+Best macd threshold : 1.0
+Best ema difference : -1.0
+Best max_gradient : 0.01
+Best scaling_factor : 0.01
+Best gradient : 1.0
+Best midpoint : 83.xxxx
 
-[Line plot image]
 [Pair plot image]
+[Line plot image]
 ```
 ---
 #### Customization
@@ -121,9 +137,9 @@ Best decay: 4
 	Modify the file_path variable in the Main class to point to your own forex data CSV file.
    
 
-2. **States and Actions:** 
+2. **Technical Indicators:** 
    
-   You can adjust the states and actions in the Sub class to fit other types of market data or strategies.
+   You can adjust the indicators to include more than what I've included or remove what you feel is unneccesary.
 
 
 3. **Training Boundaries:** 
