@@ -12,7 +12,7 @@ class CalculateReward:
                                                         max_gradient,
                                                         scaling_factor,
                                                         gradient,
-                                                        midpoint)
+                                                        midpoint,)
 
     def calculate_reward(self, current_row_content, next_row_content, current_action, instrument_weight,
                          current_instrument, next_instrument, episode, row_index):

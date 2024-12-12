@@ -10,6 +10,7 @@ from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
 from training_helper import calculate_reward, graph_manager, q_table_manager, state_manager
+import logging
 
 matplotlib.use('Agg')
 
@@ -18,7 +19,7 @@ class TrainingAgent:
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
     _number_of_episodes: int = 5
     _call_count: int = 0
-    _number_of_calls: int = 80
+    _number_of_calls: int = 1
     _number_of_omitted_rows: int = 1  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
@@ -38,7 +39,8 @@ class TrainingAgent:
         """
         Executes a Gaussian Process optimization to tune model parameters. This method optimizes a set of
         parameters using a Gaussian Process optimizer.
-
+        :param: tele_handler: Handles the telegram send_message method.
+        :param: _optimize_episodes: None
         :return: A tuple containing:
             - result:
                 - x: The best parameters found.
@@ -69,6 +71,7 @@ class TrainingAgent:
         """
         Evaluates the objective function for a given set of parameters.
 
+        :param _optimize_episodes: None
         :param parameters: A list of parameters to evaluate
         :type parameters: list
 
@@ -127,6 +130,7 @@ class Trainer(TrainingAgent):
         super().__init__()
         [self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold, self.ema_difference, self.max_gradient,
          self.scaling_factor, self.gradient, self.midpoint] = parameters
+
         self.state_handler = state_manager.StateManager(self.macd_threshold,
                                                         self.ema_difference,
                                                         self.epsilon,
@@ -219,7 +223,6 @@ class Trainer(TrainingAgent):
                                                                                          self.next_instrument,
                                                                                          episode,
                                                                                          row_index)
-
                 self.instrument_weight = updated_instrument_weight
 
                 episode_reward += reward
@@ -232,6 +235,7 @@ class Trainer(TrainingAgent):
             total_reward += episode_reward
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
+        logging.info(self.q_table)
         return total_reward, self.q_table
 
     @property
@@ -276,14 +280,16 @@ if __name__ == "__main__":
         """Utilizes optimize parameters to get optimize q-table"""
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating training - Please await completion message.")
+
         reward, q_table = Trainer(constants.OPTIMIZE_PARAMETERS).train()  # reward needed only for training
+
         tele_handler.send_message("Training done.")
         tele_handler.send_table(q_table)
-        tele_handler.send_message("Storing q-table.")
+
         db_file = os.path.abspath(constants.Q_TABLE_DB)
         database_manager.DBManager(db_file)
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
-        tele_handler.send_message("Done.")
+        tele_handler.send_message("Updated q-table has been stored.")
 
     telebot.infinity_polling()

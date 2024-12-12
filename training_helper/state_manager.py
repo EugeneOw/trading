@@ -2,6 +2,7 @@ import logging
 import random
 import numpy as np
 from constants import constants
+import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,7 +67,6 @@ class StateManager:
                     highest_score = instrument_weight.index(min(instrument_weight))
                 else:
                     highest_score = instrument_weight.index(max(instrument_weight))
-
                 if highest_score == 0:
                     return self.macd_state(macd, signal_line)
                 else:
@@ -139,7 +139,8 @@ class StateManager:
         """
         _sigmoid_component = self.scaling_factor / (1 + np.exp(-self.gradient * (episode - self.midpoint)))
         _log_component = np.log(row_index + 1)
-        return min(_sigmoid_component * _log_component, self.max_gradient)
+        _constant = min(_sigmoid_component * _log_component, self.max_gradient)
+        return _constant
 
     def adjust_reward(self, instrument_weight, current_instrument, next_instrument, outcome, episode, row_index):
         """
@@ -168,10 +169,12 @@ class StateManager:
         """
         _current_instrument_score = instrument_weight[current_instrument]
         _next_instrument_score = instrument_weight[next_instrument]
+        _dynamic_alpha = self.dynamic_alpha(episode, row_index)
         if outcome == 0:
-            _constant = (1 - self.dynamic_alpha(episode, row_index))
+            _constant = (1 - _dynamic_alpha)
         else:
-            _constant = (1 + self.dynamic_alpha(episode, row_index))
-        instrument_weight[current_instrument] = _current_instrument_score * _constant
-        instrument_weight[next_instrument] = _current_instrument_score * _constant
+            _constant = (1 + _dynamic_alpha)
+
+        instrument_weight[current_instrument] = _constant * _current_instrument_score
+        instrument_weight[next_instrument] = _constant * _next_instrument_score
         return instrument_weight
