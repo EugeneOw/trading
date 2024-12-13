@@ -10,15 +10,15 @@ AVAILABLE_INSTRUMENTS: list[str] = ["MACD", "EMA"]
 AVAILABLE_STATES: list[str] = ["Bullish", "Bearish", "Neutral"]
 
 OPTIMIZE_PARAMETERS: list[float] = [1.0,
-                                    0.7,
+                                    0.7545743022625832,
                                     0.1,
-                                    1.0,
+                                    10.0,
                                     1.0,
                                     -1.0,
+                                    0.2,
+                                    0.5,
                                     0.01,
-                                    0.01,
-                                    1.0,
-                                    83.36485324122248]
+                                    50.0]
 
 PARAMETERS_NAME: list[str] = ["alpha",
                               "gamma",

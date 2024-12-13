@@ -1,8 +1,8 @@
 import os
 import logging
 from constants import constants
-from striprtf.striprtf import rtf_to_text
 from database_manager import database_manager
+from striprtf.striprtf import rtf_to_text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,16 +14,11 @@ logging.basicConfig(
 class APIKeyExtractor:
     def __init__(self):
         self.db_file = os.path.abspath(constants.PATH_DB)
-        self.rtf_file_path = self.file_path().fetch_file_path(2)
-
-    def file_path(self):
-        """
-        Initializes DBManager class
-        """
         database_manager.DBManager(self.db_file)
-        return database_manager.FilePathManager(self.db_file)
+        file_path_manager = database_manager.FilePathManager(self.db_file)
+        self.rtf_file_path = file_path_manager.fetch_file_path(2)
 
-    def extract_api_key(self) -> str:
+    def extract_api_key(self):
         """
         Extracts API key from an RTF file
 
@@ -33,7 +28,9 @@ class APIKeyExtractor:
         try:
             with open(self.rtf_file_path, 'r') as file:
                 rtf_content = file.read()
-            return str(rtf_to_text(rtf_content)).strip()
+            plain_text = rtf_to_text(rtf_content.strip())
+            keys = plain_text.splitlines()
+            return [key.strip() for key in keys if key.strip()]
         except FileNotFoundError:
             logging.error("File not found.")
         except PermissionError:

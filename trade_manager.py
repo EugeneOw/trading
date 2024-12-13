@@ -10,7 +10,6 @@ from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
 from training_helper import calculate_reward, graph_manager, q_table_manager, state_manager
-import logging
 
 matplotlib.use('Agg')
 
@@ -19,7 +18,7 @@ class TrainingAgent:
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
     _number_of_episodes: int = 5
     _call_count: int = 0
-    _number_of_calls: int = 1
+    _number_of_calls: int = 110
     _number_of_omitted_rows: int = 1  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
@@ -235,7 +234,6 @@ class Trainer(TrainingAgent):
             total_reward += episode_reward
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
                                                                                 self.iterated_values)
-        logging.info(self.q_table)
         return total_reward, self.q_table
 
     @property
@@ -285,6 +283,7 @@ if __name__ == "__main__":
 
         tele_handler.send_message("Training done.")
         tele_handler.send_table(q_table)
+        tele_handler.send_message(f"Total reward: {reward}")
 
         db_file = os.path.abspath(constants.Q_TABLE_DB)
         database_manager.DBManager(db_file)
