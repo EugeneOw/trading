@@ -26,8 +26,8 @@ class TeleBotManager:
         :rtype: str
         """
         api_key = api_key_extractor.APIKeyExtractor()
-        api_key = api_key.extract_api_key()
-        return api_key[0]
+        api_key = api_key.extract_api_key()[0]
+        return api_key
 
     def connect_tele_bot(self):
         """

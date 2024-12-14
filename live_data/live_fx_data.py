@@ -1,26 +1,26 @@
-import os
 import json
+import logging
 import requests
-from constants import constants
-from datetime import datetime, timezone
+import oandapyV20
 from api_key_extractor import api_key_extractor
 
 
 class LiveFX:
     def __init__(self):
-        self.db_file = self.get_api_key()
+        self.access_token = self.get_access_token()
 
     @staticmethod
-    def get_api_key():
+    def get_access_token():
         """
-        Gets api key from APIKeyExtractor
-        :return: api key
+        Gets access_token from APIKeyExtractor
+        :return: access token
         :rtype: str
         """
-        api_key = api_key_extractor.APIKeyExtractor()
-        api_key = api_key.extract_api_key()
-        return api_key
+        handler = api_key_extractor.APIKeyExtractor()
+        file_handler = handler.extract_api_key()
+        access_token = file_handler[1]
+        account_id = file_handler[2]
+        logging.info(access_token)
+        return access_token
 
 
-if __name__ == "__main__":
-    LiveFX()

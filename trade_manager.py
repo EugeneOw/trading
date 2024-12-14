@@ -6,6 +6,7 @@ import numpy as np
 from skopt import Optimizer
 from constants import constants
 from collections import namedtuple
+from live_data import live_fx_data
 from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
@@ -16,9 +17,9 @@ matplotlib.use('Agg')
 
 class TrainingAgent:
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
-    _number_of_episodes: int = 5
+    _number_of_episodes: int = 1
     _call_count: int = 0
-    _number_of_calls: int = 110
+    _number_of_calls: int = 1
     _number_of_omitted_rows: int = 1  # Min 1
     _random_state: int = 42
     _iterated_values: dict = {}
@@ -258,6 +259,8 @@ class Trainer(TrainingAgent):
 if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
+
+    live_fx = live_fx_data.LiveFX()
 
     @telebot.message_handler(commands=['optimize'])
     def train_model(message):

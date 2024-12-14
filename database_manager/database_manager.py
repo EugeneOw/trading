@@ -27,7 +27,7 @@ class FilePathManager(DBManager):
         :return: stored_path
         :rtype: str
         """
-        with sqlite3.connect(self.db_file) as conn:  # Using 'with' ensures the connection is closed properly
+        with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT path FROM file_paths WHERE id = ?', (file_id,))
             result = cursor.fetchone()

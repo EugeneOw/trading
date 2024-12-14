@@ -23,7 +23,6 @@ class APIKeyExtractor:
         Extracts API key from an RTF file
 
         :return: Extracted API key as a string
-        :rtype: str
         """
         try:
             with open(self.rtf_file_path, 'r') as file:
