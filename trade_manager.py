@@ -260,13 +260,11 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
-    live_fx = live_fx_data.LiveFX()
-
     @telebot.message_handler(commands=['optimize'])
-    def train_model(message):
+    def optimize(message):
         """
-        Handles the '/train' command to initiate the training process for the model.
-
+        Handles the '/optimize' command to initiate the training process for the model.
+        Gets the best parameters by train data
         :param message: Message object containing details of the '/train' command
         :return: None
         """
@@ -277,7 +275,7 @@ if __name__ == "__main__":
         TrainingAgent().review_summary(tele_handler, best_params)
 
     @telebot.message_handler(commands=['train'])
-    def test_model(message):
+    def train_model(message):
         """Utilizes optimize parameters to get optimize q-table"""
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating training - Please await completion message.")
@@ -293,5 +291,9 @@ if __name__ == "__main__":
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
         tele_handler.send_message("Updated q-table has been stored.")
+
+    @telebot.message_handler(commands=['test'])
+    def test_model(message):
+        live_fx_data.LiveFX().get_stream()
 
     telebot.infinity_polling()
