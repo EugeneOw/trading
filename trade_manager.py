@@ -17,10 +17,10 @@ matplotlib.use('Agg')
 
 class TrainingAgent:
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
-    _number_of_episodes: int = 1
+    _number_of_episodes: int = 5
     _call_count: int = 0
     _number_of_calls: int = 1
-    _number_of_omitted_rows: int = 1  # Min 1
+    _number_of_omitted_rows: int = 810001  # Minimum: 1
     _random_state: int = 42
     _iterated_values: dict = {}
     _reward_history: list = []
@@ -56,7 +56,7 @@ class TrainingAgent:
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
             tele_handler.send_message(
-                f"Iteration {call + 1}/{TrainingAgent._number_of_calls}\n"
+                f"Call iteration: {call + 1}/{TrainingAgent._number_of_calls}\n"
             )
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
@@ -270,6 +270,7 @@ if __name__ == "__main__":
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating optimizing.")
+        TrainingAgent._reward_history = []
         result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler, best_params)
