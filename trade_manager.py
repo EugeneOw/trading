@@ -10,7 +10,7 @@ from live_data import live_fx_data
 from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
-from training_helper import calculate_reward, graph_manager, q_table_manager, state_manager
+from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
 
 matplotlib.use('Agg')
 
@@ -143,7 +143,7 @@ class Trainer(TrainingAgent):
         self.current_instrument = ""
         self.next_instrument = ""
 
-        self.reward_handler = calculate_reward.CalculateReward(self.macd_threshold,
+        self.reward_handler = reward_manager.CalculateReward(self.macd_threshold,
                                                                self.ema_difference,
                                                                self.epsilon,
                                                                self.max_gradient,

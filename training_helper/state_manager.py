@@ -126,6 +126,7 @@ class StateManager:
             action = self.state_map[self.avail_actions[1]]
         return action, instrument
 
+
     def dynamic_alpha(self, episode, row_index):
         """
         Calculates the dynamic alpha based on episode and call. Utilizes the sigmoid growth.
@@ -175,6 +176,12 @@ class StateManager:
         else:
             _constant = (1 + _dynamic_alpha)
 
+        #Punish/Reward
         instrument_weight[current_instrument] = _constant * _current_instrument_score
         instrument_weight[next_instrument] = _constant * _next_instrument_score
+
+
+
+        logging.info(instrument_weight)
+        time.sleep(0.001)
         return instrument_weight
