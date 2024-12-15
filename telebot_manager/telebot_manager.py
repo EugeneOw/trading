@@ -5,7 +5,6 @@ from constants import constants
 from prettytable import PrettyTable
 from api_key_extractor import api_key_extractor
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -15,11 +14,11 @@ logging.basicConfig(
 
 class TeleBotManager:
     def __init__(self):
-        self.api_key = self.get_api_key()
+        self.api_key = self.retrieve_api_key()
         self.polling_thread = None
 
     @staticmethod
-    def get_api_key():
+    def retrieve_api_key():
         """
         Gets api_key from APIKeyExtractor
         :return: api key

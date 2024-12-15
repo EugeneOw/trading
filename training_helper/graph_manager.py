@@ -104,12 +104,21 @@ class LinePlotManager(GraphManager):
         :return: None
         """
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards, marker='o', color='b', linestyle='-',
-                 label='Episode VS Objective (Reward)')
-        plt.title('Objective - Positive: Profits made, Negative: Lost made')
+        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards, marker='o', color='b', linestyle='-', label='Reward')
+        plt.title('Objective')
+        plt.text(
+            x=0.5 * len(all_rewards),
+            y=max(all_rewards) * 0.9,
+            s='Positive: Profits made, Negative: Loss made',
+            color='grey',
+            fontsize=12,
+            ha='center',
+            va='center',
+            alpha=0.8
+        )
         plt.xlabel('Episode')
         plt.ylabel('Objective Reward')
         plt.grid(True)
         plt.legend()
         file_path = self.file_path_manager.fetch_file_path(1)
-        plt.savefig(f"{file_path}/line plot.png")
+        plt.savefig(f"{file_path}/line_plot.png")

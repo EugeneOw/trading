@@ -11,19 +11,22 @@ from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
 from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
+import logging
 
 matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    _parameters: list[tuple] = constants.PARAMETERS_TRAINING
-    _number_of_episodes: int = 5
-    _call_count: int = 0
-    _number_of_calls: int = 1
-    _number_of_omitted_rows: int = 810001  # Minimum: 1
-    _random_state: int = 42
-    _iterated_values: dict = {}
     _reward_history: list = []
+    _iterated_values: dict = {}
+
+    _call_count: int = 0
+    _random_state: int = 42
+    _number_of_calls: int = 1
+    _number_of_episodes: int = 5
+    _number_of_omitted_rows: int = 1  # Minimum: 1
+
+    _parameters: list[tuple] = constants.PARAMETERS_TRAINING
 
     def __init__(self):
         __macd = macd.MACD()
@@ -71,7 +74,6 @@ class TrainingAgent:
         """
         Evaluates the objective function for a given set of parameters.
 
-        :param _optimize_episodes: None
         :param parameters: A list of parameters to evaluate
         :type parameters: list
 
@@ -128,40 +130,59 @@ class TrainingAgent:
 class Trainer(TrainingAgent):
     def __init__(self, parameters):
         super().__init__()
-        [self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold, self.ema_difference, self.max_gradient,
-         self.scaling_factor, self.gradient, self.midpoint] = parameters
+        [self.alpha,
+         self.gamma,
+         self.epsilon,
+         self.decay,
+         self.macd_threshold,
+         self.ema_difference,
+         self.max_gradient,
+         self.scaling_factor,
+         self.gradient,
+         self.midpoint] = parameters
 
-        self.state_handler = state_manager.StateManager(self.macd_threshold,
-                                                        self.ema_difference,
-                                                        self.epsilon,
-                                                        self.max_gradient,
-                                                        self.scaling_factor,
-                                                        self.gradient,
-                                                        self.midpoint)
-
-        self.instrument_weight = self.state_handler.create_weights()
-        self.current_instrument = ""
         self.next_instrument = ""
+        self.current_instrument = 0
+        self.row_index = 0
 
-        self.reward_handler = reward_manager.CalculateReward(self.macd_threshold,
-                                                               self.ema_difference,
-                                                               self.epsilon,
-                                                               self.max_gradient,
-                                                               self.scaling_factor,
-                                                               self.gradient,
-                                                               self.midpoint)
+        self.state_handler = state_manager.StateManager(self.macd_threshold, self.ema_difference, self.epsilon)
+        self.instrument_weight = self.state_handler.create_weights()
+        self.reward_handler = reward_manager.CalculateReward(self.max_gradient, self.scaling_factor, self.gradient,
+                                                             self.midpoint)
 
-        self.q_table_handler = q_table_manager.QTableManager(self.alpha,
-                                                             self.gamma)
+        self.q_table_handler = q_table_manager.QTableManager(self.alpha, self.gamma)
         self.q_table = self.q_table_handler.create_q_table()
 
-        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha,
-                                                               self.gamma,
-                                                               self.epsilon,
-                                                               self.decay,
-                                                               self.macd_threshold,
-                                                               self.ema_difference)
+        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.epsilon, self.decay,
+                                                               self.macd_threshold, self.ema_difference)
         self.line_plot_handler = graph_manager.LinePlotManager()
+
+    def course_of_action(self, current_state_index):
+        if random.uniform(0, 1) < self.epsilon:
+            if random.uniform(0, 1) < 0.1:
+                # 10% chance to select lowest q-val
+                action_index = np.argmin(self.q_table[current_state_index])
+            else:
+                action_index = random.choice(range(len(constants.AVAILABLE_ACTIONS)))
+        else:
+            action_index = np.argmax(self.q_table[current_state_index])
+        return constants.AVAILABLE_ACTIONS[action_index], action_index
+
+    def get_curr_state(self, previous_row_content, previous_state_index):
+        if previous_row_content is not None and previous_state_index is not None:
+
+            # Since previous row has already been identified, we don't have to look through data set again.
+            current_row_content, current_state_index = previous_row_content, previous_state_index
+            self.current_instrument = self.next_instrument
+        else:
+            current_row_content = self.dataset.iloc[self.row_index]
+            current_state_index, self.current_instrument = self.state_handler.define_state(current_row_content, self.instrument_weight)
+        return current_row_content, current_state_index
+
+    def get_next_state(self):
+        next_row_content = self.dataset.iloc[self.row_index + 1]
+        next_state_index, self.next_instrument = self.state_handler.define_state(next_row_content, self.instrument_weight)
+        return next_row_content, next_state_index
 
     def train(self):
         """
@@ -186,55 +207,31 @@ class Trainer(TrainingAgent):
             previous_state_index = None
 
             for row_index in range(len(self.dataset) - self.n_of_omitted_rows):
+                self.row_index = row_index
                 # Get state of current row
-                if previous_row_content is not None and previous_state_index is not None:
-
-                    # Since previous row has already been identified, we don't have to look through data set again.
-                    current_row_content, current_state_index = previous_row_content, previous_state_index
-                    self.current_instrument = self.next_instrument
-                else:
-                    current_row_content = self.dataset.iloc[row_index]
-                    current_state_index, self.current_instrument = self.state_handler.define_state(current_row_content,
-                                                                                                   self.instrument_weight)
+                current_row_content, current_state_index = self.get_curr_state(previous_row_content, previous_state_index)
 
                 # Get state of next row
-                next_row_content = self.dataset.iloc[row_index + 1]
-                next_state_index, self.next_instrument = self.state_handler.define_state(next_row_content,
-                                                                                         self.instrument_weight)
+                next_row_content, next_state_index = self.get_next_state()
                 previous_row_content, previous_state_index = next_row_content, next_state_index
 
                 # Choose course of action
-                if random.uniform(0, 1) < self.epsilon:
-                    if random.uniform(0, 1) < 0.1:
-                        # 10% chance to select lowest q-val
-                        action_index = np.argmin(self.q_table[current_state_index])
-                    else:
-                        action_index = random.choice(range(len(constants.AVAILABLE_ACTIONS)))
-                else:
-                    action_index = np.argmax(self.q_table[current_state_index])
-                action = constants.AVAILABLE_ACTIONS[action_index]
+                action, action_index = self.course_of_action(current_state_index)
 
                 # Calculates reward based on chosen action
-                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content,
-                                                                                         next_row_content,
-                                                                                         action,
-                                                                                         self.instrument_weight,
-                                                                                         self.current_instrument,
-                                                                                         self.next_instrument,
-                                                                                         episode,
-                                                                                         row_index)
-                self.instrument_weight = updated_instrument_weight
+                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action, row_index,
+                                                                                         self.instrument_weight, self.current_instrument, episode)
 
+                self.instrument_weight = updated_instrument_weight
                 episode_reward += reward
-                self.q_table = self.q_table_handler.update_q_table(self.q_table,
-                                                                   current_state_index,
-                                                                   next_state_index,
-                                                                   action_index,
-                                                                   reward)
+
+                # Updates q-table
+                self.q_table = self.q_table_handler.update_q_table(self.q_table, current_state_index, next_state_index, action_index, reward)
+
             self.reward_history.append(episode_reward)
             total_reward += episode_reward
-        self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward,
-                                                                                self.iterated_values)
+        self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward, self.iterated_values)
+
         return total_reward, self.q_table
 
     @property
@@ -260,24 +257,33 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
+
     @telebot.message_handler(commands=['optimize'])
     def optimize(message):
         """
         Handles the '/optimize' command to initiate the training process for the model.
         Gets the best parameters by train data
-        :param message: Message object containing details of the '/train' command
+        :param message: Message object containing details of the '/optimize' command
         :return: None
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating optimizing.")
+
+        # Resets '_reward_history' to prevent re-running from wrongly updating _reward_history from previous attempts.
         TrainingAgent._reward_history = []
+
         result, best_params = TrainingAgent().gaussian_process(tele_handler)
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler, best_params)
 
+
     @telebot.message_handler(commands=['train'])
     def train_model(message):
-        """Utilizes optimize parameters to get optimize q-table"""
+        """
+        Utilizes optimize parameters to get optimize q-table
+        :param message: Message object containing details of the '/train' command
+        :return: None
+        """
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating training - Please await completion message.")
 
@@ -293,8 +299,15 @@ if __name__ == "__main__":
         q_table_db_manager.q_table_operation(q_table)
         tele_handler.send_message("Updated q-table has been stored.")
 
+
     @telebot.message_handler(commands=['test'])
     def test_model(message):
+        """
+        Get live data from Oanda API
+        :param message: Message object containing details of the '/test' command
+        :return: None
+        """
         live_fx_data.LiveFX().get_stream()
+
 
     telebot.infinity_polling()

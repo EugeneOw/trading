@@ -1,8 +1,6 @@
 import logging
 import random
-import numpy as np
 from constants import constants
-import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,15 +10,10 @@ logging.basicConfig(
 
 
 class StateManager:
-    def __init__(self, macd_threshold, ema_difference, epsilon, max_gradient, scaling_factor, gradient, midpoint):
+    def __init__(self, macd_threshold, ema_difference, epsilon):
         self._macd_threshold = macd_threshold
         self._ema_difference = ema_difference
         self.epsilon: float = epsilon
-
-        self.max_gradient = max_gradient
-        self.scaling_factor = scaling_factor
-        self.gradient = gradient
-        self.midpoint = midpoint
 
         self.state_map = constants.STATE_MAP
         self.avail_instrument = constants.AVAILABLE_INSTRUMENTS
@@ -67,6 +60,7 @@ class StateManager:
                     highest_score = instrument_weight.index(min(instrument_weight))
                 else:
                     highest_score = instrument_weight.index(max(instrument_weight))
+
                 if highest_score == 0:
                     return self.macd_state(macd, signal_line)
                 else:
@@ -125,63 +119,3 @@ class StateManager:
         else:
             action = self.state_map[self.avail_actions[1]]
         return action, instrument
-
-
-    def dynamic_alpha(self, episode, row_index):
-        """
-        Calculates the dynamic alpha based on episode and call. Utilizes the sigmoid growth.
-        :param episode: Contains the number of which episode the training is currently at.
-        :type episode: int
-
-        :param row_index: Contains the index of the dataframe at which the training is currently at.
-        :type row_index: int
-
-        :return: Returns dynamic alpha for calculating reward/punishment
-        """
-        _sigmoid_component = self.scaling_factor / (1 + np.exp(-self.gradient * (episode - self.midpoint)))
-        _log_component = np.log(row_index + 1)
-        _constant = min(_sigmoid_component * _log_component, self.max_gradient)
-        return _constant
-
-    def adjust_reward(self, instrument_weight, current_instrument, next_instrument, outcome, episode, row_index):
-        """
-        Adjusts the table (instrument_weight) accordingly depending on whether it was a right (outcome: 1) or wrong
-        decision (outcome:0)
-        :param instrument_weight: List containing all the weights allocated to instruments
-        :type instrument_weight: list[float]
-
-        :param current_instrument: Currently selected instrument
-        :type current_instrument: int
-
-        :param next_instrument: Next selected instrument
-        :type current_instrument: int
-
-        :param outcome: Outcome of action, right (outcome: 1) and wrong (outcome:0)
-        :type outcome: int
-
-        :param episode: Contains the number of which episode the training is currently at.
-        :type episode: int
-
-        :param row_index: Contains the index of the dataframe at which the training is currently at.
-        :type row_index: int
-
-        :return: instrument_weight: List containing all the weights allocated to instruments
-        :rtype: list[float]
-        """
-        _current_instrument_score = instrument_weight[current_instrument]
-        _next_instrument_score = instrument_weight[next_instrument]
-        _dynamic_alpha = self.dynamic_alpha(episode, row_index)
-        if outcome == 0:
-            _constant = (1 - _dynamic_alpha)
-        else:
-            _constant = (1 + _dynamic_alpha)
-
-        #Punish/Reward
-        instrument_weight[current_instrument] = _constant * _current_instrument_score
-        instrument_weight[next_instrument] = _constant * _next_instrument_score
-
-
-
-        logging.info(instrument_weight)
-        time.sleep(0.001)
-        return instrument_weight
