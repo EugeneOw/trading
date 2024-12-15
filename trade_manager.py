@@ -157,16 +157,20 @@ class Trainer(TrainingAgent):
                                                                self.macd_threshold, self.ema_difference)
         self.line_plot_handler = graph_manager.LinePlotManager()
 
-    def course_of_action(self, current_state_index):
+    def course_of_action(self, curr_state_idx):
+        """
+
+        :param curr_state_idx:
+        :return: constants.AVAILABLE_ACTIONS[action_idx]:
+        """
         if random.uniform(0, 1) < self.epsilon:
-            if random.uniform(0, 1) < 0.1:
-                # 10% chance to select lowest q-val
-                action_index = np.argmin(self.q_table[current_state_index])
+            if random.uniform(0, 1) < 0.1:  # 10% to select wrong value
+                return np.argmin(self.q_table[curr_state_idx])
             else:
-                action_index = random.choice(range(len(constants.AVAILABLE_ACTIONS)))
+                length_actions = range(len(constants.AVAILABLE_ACTIONS))
+                return random.choice(length_actions)
         else:
-            action_index = np.argmax(self.q_table[current_state_index])
-        return constants.AVAILABLE_ACTIONS[action_index], action_index
+            return np.argmax(self.q_table[curr_state_idx])
 
     def get_curr_state(self, previous_row_content, previous_state_index):
         if previous_row_content is not None and previous_state_index is not None:
@@ -216,10 +220,10 @@ class Trainer(TrainingAgent):
                 previous_row_content, previous_state_index = next_row_content, next_state_index
 
                 # Choose course of action
-                action, action_index = self.course_of_action(current_state_index)
+                action_index = self.course_of_action(current_state_index)
 
                 # Calculates reward based on chosen action
-                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action, row_index,
+                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action_index, row_index,
                                                                                          self.instrument_weight, self.current_instrument, episode)
 
                 self.instrument_weight = updated_instrument_weight

@@ -52,11 +52,10 @@ class StateManager:
 
             # Selects state randomly
             if random.uniform(0, 1) < self.epsilon:
-                return random.choice([self.macd_state(macd, signal_line),
-                                      self.ema_state(ema_12, ema_26)])
+                return random.choice([self.macd_state(macd, signal_line), self.ema_state(ema_12, ema_26)])
             else:
                 if random.uniform(0, 1) < 0.1:
-                    # Selects least weighted instrument
+                    # 10% chance of selecting the least weighted instrument.
                     highest_score = instrument_weight.index(min(instrument_weight))
                 else:
                     highest_score = instrument_weight.index(max(instrument_weight))
