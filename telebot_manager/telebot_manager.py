@@ -36,7 +36,9 @@ class TeleBotManager:
         :rtype: Synchronous class
         """
         try:
-            return telebot.TeleBot(self.api_key)
+            bot = telebot.TeleBot(self.api_key)
+            bot.remove_webhook()
+            return bot
         except ValueError as e:
             logging.error("Invalid token {e]", e)
         except telebot.apihelper.ApiException as e:

@@ -10,9 +10,8 @@ logging.basicConfig(
 
 
 class StateManager:
-    def __init__(self, macd_threshold, ema_difference, epsilon):
-        self._macd_threshold = macd_threshold
-        self._ema_difference = ema_difference
+    def __init__(self, macd_threshold, epsilon):
+        self.macd_threshold = macd_threshold
         self.epsilon: float = epsilon
 
         self.state_map = constants.STATE_MAP
@@ -90,10 +89,12 @@ class StateManager:
         :rtype: instrument: int
         """
         instrument = self.avail_instrument.index("MACD")
-        if macd > (signal_line - self._macd_threshold):
+        if (macd > signal_line) and (macd - signal_line) < self.macd_threshold:
             action = self.state_map[self.avail_actions[0]]
-        else:
+        elif (macd < signal_line) and (signal_line - macd) < self.macd_threshold:
             action = self.state_map[self.avail_actions[1]]
+        else:
+            action = self.state_map[self.avail_actions[2]]
         return action, instrument
 
     def ema_state(self, ema_12, ema_26):
@@ -113,7 +114,7 @@ class StateManager:
         :rtype: instrument: int
         """
         instrument = self.avail_instrument.index("EMA")
-        if (ema_12 - ema_26) > self._ema_difference:
+        if (ema_12 - ema_26) > 0:
             action = self.state_map[self.avail_actions[0]]
         else:
             action = self.state_map[self.avail_actions[1]]

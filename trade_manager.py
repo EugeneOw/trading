@@ -11,7 +11,6 @@ from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
 from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
-import logging
 
 matplotlib.use('Agg')
 
@@ -22,9 +21,9 @@ class TrainingAgent:
 
     _call_count: int = 0
     _random_state: int = 42
-    _number_of_calls: int = 1
-    _number_of_episodes: int = 5
-    _number_of_omitted_rows: int = 1  # Minimum: 1
+    _number_of_calls: int = 5
+    _number_of_episodes: int = 1
+    _number_of_omitted_rows: int = 810001  # Minimum: 1
 
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
 
@@ -58,9 +57,7 @@ class TrainingAgent:
             params = optimizer.ask()
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
-            tele_handler.send_message(
-                f"Call iteration: {call + 1}/{TrainingAgent._number_of_calls}\n"
-            )
+            tele_handler.send_message(f"Call iteration: {call + 1}/{TrainingAgent._number_of_calls}\n")
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
@@ -135,7 +132,6 @@ class Trainer(TrainingAgent):
          self.epsilon,
          self.decay,
          self.macd_threshold,
-         self.ema_difference,
          self.max_gradient,
          self.scaling_factor,
          self.gradient,
@@ -145,7 +141,7 @@ class Trainer(TrainingAgent):
         self.current_instrument = 0
         self.row_index = 0
 
-        self.state_handler = state_manager.StateManager(self.macd_threshold, self.ema_difference, self.epsilon)
+        self.state_handler = state_manager.StateManager(self.macd_threshold, self.epsilon)
         self.instrument_weight = self.state_handler.create_weights()
         self.reward_handler = reward_manager.CalculateReward(self.max_gradient, self.scaling_factor, self.gradient,
                                                              self.midpoint)
@@ -153,8 +149,7 @@ class Trainer(TrainingAgent):
         self.q_table_handler = q_table_manager.QTableManager(self.alpha, self.gamma)
         self.q_table = self.q_table_handler.create_q_table()
 
-        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.epsilon, self.decay,
-                                                               self.macd_threshold, self.ema_difference)
+        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold)
         self.line_plot_handler = graph_manager.LinePlotManager()
 
     def course_of_action(self, curr_state_idx):

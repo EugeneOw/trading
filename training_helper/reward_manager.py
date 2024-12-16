@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 from constants import constants
 
@@ -50,20 +51,22 @@ class CalculateReward:
         current_price = current_row_content['Mid Price']
         next_price = next_row_content['Mid Price']
 
+        # Rewards/Punishes the instruments.
         _buy_and_increase = action_index == 0 and current_price < next_price
         _sell_and_decrease = action_index == 1 and current_price > next_price
         if _buy_and_increase or _sell_and_decrease:
             _outcome = 1
         else:
             _outcome = 0
-
         instrument_weight = self.adjust_reward(instrument_weight, current_instrument, _outcome, episode, row_index)
 
+        # Adjusts rewards based on action and result.
         if action_index == constants.AVAILABLE_ACTIONS[0]:
             reward = current_price - next_price
-        else:
+        elif action_index == constants.AVAILABLE_ACTIONS[1]:
             reward = next_price - current_price
-
+        else:
+            reward = -0.1  # Punishment for holding
         return reward, instrument_weight
 
     def dynamic_alpha(self, episode, row_index):

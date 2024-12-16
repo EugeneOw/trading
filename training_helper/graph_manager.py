@@ -22,14 +22,13 @@ class GraphManager:
 
 
 class PairPlotManager(GraphManager):
-    def __init__(self, alpha, gamma, epsilon, decay, macd_threshold, ema_difference):
+    def __init__(self, alpha, gamma, epsilon, decay, macd_threshold):
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
         self.decay = decay
         self.macd_threshold = macd_threshold
-        self.ema_difference = ema_difference
         self.episode_reward = None
 
     def store_parameter_pair_plot(self, total_reward, iterated_values):
@@ -52,6 +51,7 @@ class PairPlotManager(GraphManager):
                 'gamma': self.gamma,
                 'epsilon': self.epsilon,
                 'decay': int(self.decay),
+                'macd': self.macd_threshold,
                 'total_reward': float(total_reward)
             }.items():
 
@@ -106,19 +106,9 @@ class LinePlotManager(GraphManager):
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards, marker='o', color='b', linestyle='-', label='Reward')
         plt.title('Objective')
-        plt.text(
-            x=0.5 * len(all_rewards),
-            y=max(all_rewards) * 0.9,
-            s='Positive: Profits made, Negative: Loss made',
-            color='grey',
-            fontsize=12,
-            ha='center',
-            va='center',
-            alpha=0.8
-        )
         plt.xlabel('Episode')
         plt.ylabel('Objective Reward')
         plt.grid(True)
         plt.legend()
         file_path = self.file_path_manager.fetch_file_path(1)
-        plt.savefig(f"{file_path}/line_plot.png")
+        plt.savefig(f"{file_path}/line plot.png")
