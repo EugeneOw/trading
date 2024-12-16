@@ -1,5 +1,7 @@
 import os
 import random
+
+import matplotlib.pyplot as plt
 import telebot
 import matplotlib
 import numpy as np
@@ -11,6 +13,7 @@ from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
 from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
+import logging
 
 matplotlib.use('Agg')
 
@@ -21,9 +24,9 @@ class TrainingAgent:
 
     _call_count: int = 0
     _random_state: int = 42
-    _number_of_calls: int = 5
-    _number_of_episodes: int = 1
-    _number_of_omitted_rows: int = 810001  # Minimum: 1
+    _number_of_calls: int = 100
+    _number_of_episodes: int = 5
+    _number_of_omitted_rows: int = 1  # Minimum: 1
 
     _parameters: list[tuple] = constants.PARAMETERS_TRAINING
 
@@ -204,7 +207,6 @@ class Trainer(TrainingAgent):
             episode_reward = 0
             previous_row_content = None
             previous_state_index = None
-
             for row_index in range(len(self.dataset) - self.n_of_omitted_rows):
                 self.row_index = row_index
                 # Get state of current row
@@ -220,7 +222,6 @@ class Trainer(TrainingAgent):
                 # Calculates reward based on chosen action
                 reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action_index, row_index,
                                                                                          self.instrument_weight, self.current_instrument, episode)
-
                 self.instrument_weight = updated_instrument_weight
                 episode_reward += reward
 

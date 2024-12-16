@@ -61,12 +61,13 @@ class CalculateReward:
         instrument_weight = self.adjust_reward(instrument_weight, current_instrument, _outcome, episode, row_index)
 
         # Adjusts rewards based on action and result.
-        if action_index == constants.AVAILABLE_ACTIONS[0]:
+        if action_index == 0:
             reward = current_price - next_price
-        elif action_index == constants.AVAILABLE_ACTIONS[1]:
+        elif action_index == 1:
             reward = next_price - current_price
         else:
             reward = -0.1  # Punishment for holding
+
         return reward, instrument_weight
 
     def dynamic_alpha(self, episode, row_index):
