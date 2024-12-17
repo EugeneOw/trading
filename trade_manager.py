@@ -11,33 +11,37 @@ from live_data import live_fx_data
 from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
-import logging
 
 matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    _reward_history: list = []
-    _iterated_values: dict = {}
+    reward_history: list[float] = []  # Stores rewards to use in line graph
+    iterated_values: dict[str: list[float]] = {}  # Stores values that were tested to achieve most optimize reward.
 
-    _call_count: int = 0
-    _random_state: int = 42
-    _number_of_calls: int = 20
-    _number_of_episodes: int = 5
-    _number_of_omitted_rows: int = 1  # Minimum: 1
+    calls: int = 20
+    episodes: int = 5
+    random_state: int = 42
+    omit_rows: int = 1  # Minimum: 1
 
-    _parameters: list[tuple] = constants.PARAMETERS_TRAINING
+    parameters: list[tuple] = constants.PARAMETERS_TRAINING
 
     def __init__(self):
-        __macd = macd.MACD()
-        self.dataset = __macd.calculate_macd()
-        self.state_to_index = {state: state for state in range(len(constants.STATE_MAP))}
-        self.n_of_omitted_rows = TrainingAgent._number_of_omitted_rows
-        self.number_of_episodes = TrainingAgent._number_of_episodes
-        self.iterated_values = TrainingAgent._iterated_values
-        self.reward_history = TrainingAgent._reward_history
+        _macd = macd.MACD()
+        self.dataset = _macd.calculate_macd()
+
+        self.state_to_index = self.create_state_map
+
+        self._omit_rows = TrainingAgent.omit_rows
+        self.episodes = TrainingAgent.episodes
+        self.iterated_values = TrainingAgent.iterated_values
+        self.reward_history = TrainingAgent.reward_history
+
+    @property
+    def create_state_map(self):
+        return {state: state for state in range(len(constants.STATE_MAP))}
 
     @staticmethod
     def gaussian_process(tele_handler):
@@ -54,13 +58,14 @@ class TrainingAgent:
                 - yi: List of corresponding objective function values.
             - best_params: The best parameters as a separate list.
         """
-        optimizer = Optimizer(dimensions=TrainingAgent._parameters,
-                              random_state=TrainingAgent._random_state)
-        for call in range(TrainingAgent._number_of_calls):
-            params = optimizer.ask()
+        optimizer = Optimizer(dimensions=TrainingAgent.parameters, random_state=TrainingAgent.random_state)
+
+        for call in range(TrainingAgent.calls):
+            params = optimizer.ask()  # 'TrainingAgent.parameters'
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
-            tele_handler.send_message(f"Call iteration: {call + 1}/{TrainingAgent._number_of_calls}\n")
+            tele_handler.send_message(f"Call iteration: {call + 1}/{TrainingAgent.calls}\n")
+
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
@@ -96,8 +101,8 @@ class TrainingAgent:
         pair_plot_handler.build_pair_plot(self.iterated_values)
         line_plot_handler = training_agent.get_line_plot_handler
         line_plot_handler.build_line_plot(self.reward_history,
-                                          self.number_of_episodes,
-                                          self._number_of_calls)
+                                          self.episodes,
+                                          self.calls)
 
     @staticmethod
     def review_summary(tele_handler, best_params):
@@ -130,31 +135,27 @@ class TrainingAgent:
 class Trainer(TrainingAgent):
     def __init__(self, parameters):
         super().__init__()
-        [self.alpha,
-         self.gamma,
-         self.epsilon,
-         self.macd_threshold,
-         self.max_gradient,
-         self.scaling_factor,
-         self.gradient,
-         self.midpoint] = parameters
+        [self.alpha, self.gamma, self.decay, self.macd_threshold,
+         self.max_grad, self.scale_fac, self.grad, self.mid] = parameters
 
-        self.next_instrument = ""
-        self.current_instrument = 0
-        self.row_index = 0
-        self.episode = 0
-        self.length_of_dataset = 0
-        self.decay = 0
+        self.next_instr: str = ""  # Contains instrument used to determine next row's state (Bull/Bearish)
+        self.current_instr = 0
 
-        self.state_handler = state_manager.StateManager(self.macd_threshold, self.epsilon)
+        self.episode: int = 0
+        self.row_index: int = 0
+        self.length_of_dataset: int = 0
+
+        self.total_decay: float = 0  # Not same as 'decay' which is a constant used to calculate 'total_decay'
+
+        self.state_handler = state_manager.StateManager(self.macd_threshold, self.decay)
         self.instrument_weight = self.state_handler.create_weights()
-        self.reward_handler = reward_manager.CalculateReward(self.max_gradient, self.scaling_factor, self.gradient,
-                                                             self.midpoint)
+
+        self.reward_handler = reward_manager.CalculateReward(self.max_grad, self.scale_fac, self.grad, self.mid)
 
         self.q_table_handler = q_table_manager.QTableManager(self.alpha, self.gamma)
         self.q_table = self.q_table_handler.create_q_table()
 
-        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.epsilon, self.macd_threshold)
+        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.decay, self.macd_threshold)
         self.line_plot_handler = graph_manager.LinePlotManager()
 
     def course_of_action(self, curr_state_idx):
@@ -163,7 +164,7 @@ class Trainer(TrainingAgent):
         :param curr_state_idx:
         :return: constants.AVAILABLE_ACTIONS[action_idx]:
         """
-        self.decay = self.get_decay
+        self.total_decay = self.calc_total_decay
         if random.uniform(0, 1) < self.decay:
             length_actions = range(len(constants.AVAILABLE_ACTIONS))
             return random.choice(length_actions)
@@ -174,10 +175,10 @@ class Trainer(TrainingAgent):
                 return np.argmax(self.q_table[curr_state_idx])
 
     @property
-    def get_decay(self):
-        _constant = self.epsilon
-        _numerator = (self.row_index+1) * (self.episode+1)
-        _denominator = self.length_of_dataset*self.number_of_episodes
+    def calc_total_decay(self):
+        _constant = self.decay
+        _numerator = (self.row_index + 1) * (self.episode + 1)
+        _denominator = self.length_of_dataset * self.episodes
         return float(math.exp(-_constant * (_numerator / _denominator)))
 
     def get_curr_state(self, previous_row_content, previous_state_index):
@@ -185,25 +186,25 @@ class Trainer(TrainingAgent):
 
             # Since previous row has already been identified, we don't have to look through data set again.
             current_row_content, current_state_index = previous_row_content, previous_state_index
-            self.current_instrument = self.next_instrument
+            self.current_instr = self.next_instr
         else:
             current_row_content = self.dataset.iloc[self.row_index]
-            current_state_index, self.current_instrument = self.state_handler.define_state(current_row_content, self.instrument_weight, self.decay)
+            current_state_index, self.current_instr = self.state_handler.define_state(current_row_content, self.instrument_weight, self.decay)
         return current_row_content, current_state_index
 
     def get_next_state(self):
         next_row_content = self.dataset.iloc[self.row_index + 1]
-        next_state_index, self.next_instrument = self.state_handler.define_state(next_row_content, self.instrument_weight, self.decay)
+        next_state_index, self.next_instr = self.state_handler.define_state(next_row_content, self.instrument_weight, self.decay)
         return next_row_content, next_state_index
 
     def train(self):
         """
-        Trains the Q-learning agent over a defined number of episodes (number_of_episodes) using the given parameters
+        Trains the Q-learning agent over a defined number of episodes (episodes) using the given parameters
         and dataset.
 
         This method iterates through the dataset row by row for each episode. At each step, it will;
             - Determine the current and next row's state.
-            - Selects an action based on an epsilon-greedy policy.
+            - Selects an action based on a decay-greedy policy.
             - Calculate the reward for the chosen action.
             - Updates the Q-table using the calculated reward(reward)
             - Tracks the cumulative reward for the episode
@@ -213,12 +214,12 @@ class Trainer(TrainingAgent):
         :return: The total reward accumulated over all episodes.
         """
         total_reward = 0
-        for episode in range(self.number_of_episodes):
+        for episode in range(self.episodes):
             episode_reward = 0
             previous_row_content = None
             previous_state_index = None
             self.episode = episode
-            self.length_of_dataset = len(self.dataset) - self.n_of_omitted_rows
+            self.length_of_dataset = len(self.dataset) - self._omit_rows
             for row_index in range(self.length_of_dataset):
                 self.row_index = row_index
                 # Get state of current row
@@ -232,9 +233,9 @@ class Trainer(TrainingAgent):
                 action_index = self.course_of_action(current_state_index)
 
                 # Calculates reward based on chosen action
-                reward, updated_instrument_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action_index, row_index,
-                                                                                         self.instrument_weight, self.current_instrument, episode)
-                self.instrument_weight = updated_instrument_weight
+                reward, updated_instr_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action_index, row_index,
+                                                                                    self.instrument_weight, self.current_instr, episode)
+                self.instrument_weight = updated_instr_weight
                 episode_reward += reward
 
                 # Updates q-table
@@ -265,21 +266,6 @@ class Trainer(TrainingAgent):
         return self.line_plot_handler
 
 
-class TestingAgent:
-    def __init__(self, _stream_data):
-        self._stream_data = _stream_data
-        self._data_compartment()
-
-
-    def _data_compartment(self):
-        logging.info(self._stream_data)
-
-
-class Tester(TestingAgent):
-    def __init__(self):
-        return
-
-
 if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
@@ -296,10 +282,15 @@ if __name__ == "__main__":
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating optimizing.")
 
-        # Resets '_reward_history' to prevent re-running from wrongly updating _reward_history from previous attempts.
-        TrainingAgent._reward_history = []
+        # Resets '_reward_history' to prevent re-running from wrongly
+        # appending '_reward_history' to previous attempts.
+        TrainingAgent.reward_history = []
 
-        result, best_params = TrainingAgent().gaussian_process(tele_handler)
+        # Trains model to get most optimized parameters.
+        training_agent = TrainingAgent()
+        result, best_params = training_agent.gaussian_process(tele_handler)
+
+        # Builds graph and sends telegram message to inform completion.
         TrainingAgent().build_graphs(result)
         TrainingAgent().review_summary(tele_handler, best_params)
 
@@ -336,7 +327,7 @@ if __name__ == "__main__":
         """
         live_fx_handler = live_fx_data.LiveFX()
         executor = ThreadPoolExecutor(max_workers=2)
-        _stream_data = executor.submit(live_fx_handler.get_stream())
-        TestingAgent(_stream_data.result())
+        stream_data = executor.submit(live_fx_handler.get_stream())
+
 
     telebot.infinity_polling()

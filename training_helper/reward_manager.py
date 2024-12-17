@@ -66,7 +66,7 @@ class CalculateReward:
         elif action_index == 1:
             reward = next_price - current_price
         else:
-            reward = -0.1  # Punishment for holding
+            reward = -0  # Punishment for holding
 
         return reward, instrument_weight
 

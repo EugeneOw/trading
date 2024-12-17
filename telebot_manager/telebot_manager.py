@@ -48,10 +48,10 @@ class TeleBotManager:
 
 
 class Notifier(TeleBotManager):
-    def __init__(self, t_bot, msgs):
+    def __init__(self, tbot, message):
         super().__init__()
-        self.telebot = t_bot
-        self.chat_id = msgs.chat.id
+        self.telebot = tbot
+        self.chat_id = message.chat.id
 
     def send_message(self, message):
         """

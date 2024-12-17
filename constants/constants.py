@@ -22,7 +22,7 @@ OPTIMIZE_PARAMETERS: list[float] = [0.7965429868602331,
 
 PARAMETERS_NAME: list[str] = ["alpha",
                               "gamma",
-                              "epsilon",
+                              "decay",
                               "macd threshold",
                               "max_gradient",
                               "scaling_factor",
@@ -31,7 +31,7 @@ PARAMETERS_NAME: list[str] = ["alpha",
 
 PARAMETERS_TRAINING: list[tuple] = [(0.00, 1.00),  # alpha
                                     (0.70, 1.00),  # gamma
-                                    (1.50, 4.00),  # epsilon
+                                    (1.50, 4.00),  # decay / epsilon
                                     (0.0005, 0.001),  # macd threshold
                                     (0.01, 0.20),  # max gradient
                                     (0.01, 0.50),  # scaling
