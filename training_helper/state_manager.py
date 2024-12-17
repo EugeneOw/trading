@@ -15,8 +15,8 @@ class StateManager:
         self.epsilon: float = epsilon
 
         self.state_map = constants.STATE_MAP
-        self.avail_instrument = constants.AVAILABLE_INSTRUMENTS
-        self.avail_actions = constants.AVAILABLE_ACTIONS
+        self.avail_instrument = constants.AVAIL_INSTR
+        self.avail_actions = constants.AVAIL_ACTIONS
         self.ema_period_1 = constants.EMA_PERIODS[0]
         self.ema_period_2 = constants.EMA_PERIODS[1]
 
@@ -27,18 +27,18 @@ class StateManager:
         :return:
         :rtype: list[float]
         """
-        number_of_instruments = len(constants.AVAILABLE_INSTRUMENTS)
+        number_of_instruments = len(constants.AVAIL_INSTR)
         return [1/number_of_instruments]*number_of_instruments
 
-    def define_state(self, row_content, instrument_weight, decay):
+    def define_state(self, curr_row, instr_weight, decay):
         """
         Defines the state of each row. The list that contains the weights of each instrument is used to determine,
         which instrument is best suited for this but is not updated. It is updated only later when we calculate the
         reward.
-        :param row_content: Contains details of each individual row
+        :param curr_row: Contains details of each individual row
 
-        :param instrument_weight: Contains weights of each individual instrument
-        :type instrument_weight: list[float]
+        :param instr_weight: Contains weights of each individual instrument
+        :type instr_weight: list[float]
 
         :param decay: Contains the value to be larger than in order to select a pre-defined action
         :type decay: float
@@ -47,10 +47,10 @@ class StateManager:
         :rtype: str
         """
         try:
-            macd = row_content[constants.AVAILABLE_INSTRUMENTS[0]]
-            signal_line = row_content['Signal Line']
-            ema_12 = row_content[f'{constants.AVAILABLE_INSTRUMENTS[1]} {self.ema_period_1}']
-            ema_26 = row_content[f'{constants.AVAILABLE_INSTRUMENTS[1]} {self.ema_period_2}']
+            macd = curr_row[constants.AVAIL_INSTR[0]]
+            signal_line = curr_row['Signal Line']
+            ema_12 = curr_row[f'{constants.AVAIL_INSTR[1]} {self.ema_period_1}']
+            ema_26 = curr_row[f'{constants.AVAIL_INSTR[1]} {self.ema_period_2}']
 
             # Selects state randomly
             if random.uniform(0, 1) < decay:
@@ -58,9 +58,9 @@ class StateManager:
             else:
                 if random.uniform(0, 1) < 0.1:
                     # 10% chance of selecting the least weighted instrument.
-                    highest_score = instrument_weight.index(min(instrument_weight))
+                    highest_score = instr_weight.index(min(instr_weight))
                 else:
-                    highest_score = instrument_weight.index(max(instrument_weight))
+                    highest_score = instr_weight.index(max(instr_weight))
 
                 if highest_score == 0:
                     return self.macd_state(macd, signal_line)

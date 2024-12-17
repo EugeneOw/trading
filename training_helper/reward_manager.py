@@ -16,7 +16,7 @@ class CalculateReward:
         self.constant = None
         self.split_constant = None
 
-    def calculate_reward(self, current_row_content, next_row_content, action_index, row_index, instrument_weight, current_instrument, episode):
+    def calc_reward(self, current_row_content, next_row_content, action_index, row_index, instrument_weight, current_instrument, episode):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
@@ -88,7 +88,7 @@ class CalculateReward:
 
     @property
     def split_weight(self):
-        return self.constant / (len(constants.AVAILABLE_INSTRUMENTS)-1)
+        return self.constant / (len(constants.AVAIL_INSTR)-1)
 
     @property
     def get_curr_instrument_score(self):
@@ -99,7 +99,7 @@ class CalculateReward:
 
     def reward_other_instrument(self):
         _remaining_instruments = [
-            idx for idx in range(len(constants.AVAILABLE_INSTRUMENTS))
+            idx for idx in range(len(constants.AVAIL_INSTR))
             if idx != self.current_instrument
         ]
         for idx in _remaining_instruments:
@@ -110,7 +110,7 @@ class CalculateReward:
 
     def punish_other_instrument(self):
         _remaining_instruments = [
-            idx for idx in range(len(constants.AVAILABLE_INSTRUMENTS))
+            idx for idx in range(len(constants.AVAIL_INSTR))
             if idx != self.current_instrument
         ]
         for idx in _remaining_instruments:

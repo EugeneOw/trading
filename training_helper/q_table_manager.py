@@ -21,7 +21,7 @@ class QTableManager:
         Creates an empty (all zeroes) q_table of size (available states) by (available actions).
         :return:
         """
-        return np.zeros((len(constants.STATE_MAP), len(constants.AVAILABLE_ACTIONS)))
+        return np.zeros((len(constants.STATE_MAP), len(constants.AVAIL_ACTIONS)))
 
     def update_q_table(self, q_table, current_state_index, next_state_index, action_index, reward):
         """
@@ -31,10 +31,10 @@ class QTableManager:
         :type q_table: numpy array
 
         :param current_state_index: Current row's state as an index (based on constants.STATE_MAP)
-        :type current_state_index: str
+        :type current_state_index: int
 
         :param next_state_index: Next row's state as an index
-        :type next_state_index: str
+        :type next_state_index: int
 
         :param action_index: Current action as an index (based on constants.AVAILABLE_ACTIONS)
         :type action_index: int

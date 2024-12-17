@@ -1,11 +1,12 @@
-import math
 import os
+import math
+import logging
 import random
 import telebot
 import matplotlib
 import numpy as np
 from skopt import Optimizer
-from constants import constants
+from constants import constants as c
 from collections import namedtuple
 from live_data import live_fx_data
 from financial_instruments import macd
@@ -18,30 +19,30 @@ matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    reward_history: list[float] = []  # Stores rewards to use in line graph
-    iterated_values: dict[str: list[float]] = {}  # Stores values that were tested to achieve most optimize reward.
-
-    calls: int = 20
-    episodes: int = 5
+    calls: int = 1
+    episodes: int = 1
     random_state: int = 42
-    omit_rows: int = 1  # Minimum: 1
-
-    parameters: list[tuple] = constants.PARAMETERS_TRAINING
+    omit_rows: int = 810001  # Minimum: 1
+    
+    reward_hist: list[float] = []  # Stores rewards to use in line graph
+    iterated_values: dict[str: list[float]] = {}  # Stores values that were tested to achieve most optimize reward.
+    
+    parameters: list[tuple] = c.PARAM_TRAINING
 
     def __init__(self):
         _macd = macd.MACD()
         self.dataset = _macd.calculate_macd()
-
+        
         self.state_to_index = self.create_state_map
-
-        self._omit_rows = TrainingAgent.omit_rows
+        
+        self.omit_rows = TrainingAgent.omit_rows
         self.episodes = TrainingAgent.episodes
         self.iterated_values = TrainingAgent.iterated_values
-        self.reward_history = TrainingAgent.reward_history
+        self.reward_history = TrainingAgent.reward_hist
 
     @property
     def create_state_map(self):
-        return {state: state for state in range(len(constants.STATE_MAP))}
+        return {state: state for state in range(len(c.STATE_MAP))}
 
     @staticmethod
     def gaussian_process(tele_handler):
@@ -59,19 +60,20 @@ class TrainingAgent:
             - best_params: The best parameters as a separate list.
         """
         optimizer = Optimizer(dimensions=TrainingAgent.parameters, random_state=TrainingAgent.random_state)
-
+        
         for call in range(TrainingAgent.calls):
             params = optimizer.ask()  # 'TrainingAgent.parameters'
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
             tele_handler.send_message(f"Call iteration: {call + 1}/{TrainingAgent.calls}\n")
-
+            
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
+        
         Result = namedtuple("Result", ["x", "fun", "xi", "yi"])
         result = Result(x=best_params, fun=best_value, xi=optimizer.Xi, yi=optimizer.yi)
-
+        
         return result, best_params
 
     @classmethod
@@ -97,12 +99,12 @@ class TrainingAgent:
         :return: None
         """
         training_agent = Trainer(result.x)
+        
         pair_plot_handler = training_agent.get_pair_plot_handler
         pair_plot_handler.build_pair_plot(self.iterated_values)
+        
         line_plot_handler = training_agent.get_line_plot_handler
-        line_plot_handler.build_line_plot(self.reward_history,
-                                          self.episodes,
-                                          self.calls)
+        line_plot_handler.build_line_plot(self.reward_history, self.episodes, self.calls)
 
     @staticmethod
     def review_summary(tele_handler, best_params):
@@ -113,17 +115,14 @@ class TrainingAgent:
         :param best_params: The best parameters found during optimization
         :return: None
         """
-        best_params_message = "\n".join(
-            f"Best {name} : {value}" for name, value in zip(constants.PARAMETERS_NAME, best_params)
-        )
+        best_params_message = "\n".join(f"Best {name} : {value}" for name, value in zip(c.PARAM_NAME, best_params))
         tele_handler.send_message(f"Optimization complete!\n{best_params_message}")
-
-        graph_names: list[str] = ["pair plot", "line plot"]
-        db_file = os.path.abspath(constants.PATH_DB)
+        
+        db_file = os.path.abspath(c.PATH_DB)
         file_path_manager = database_manager.FilePathManager(db_file)
         file_path = file_path_manager.fetch_file_path(1)
 
-        for graph in graph_names:
+        for graph in c.AVAIL_GRAPHS:
             image_path = f"{file_path}{graph}.png"
             try:
                 with open(image_path, 'rb') as photo:
@@ -135,20 +134,31 @@ class TrainingAgent:
 class Trainer(TrainingAgent):
     def __init__(self, parameters):
         super().__init__()
-        [self.alpha, self.gamma, self.decay, self.macd_threshold,
-         self.max_grad, self.scale_fac, self.grad, self.mid] = parameters
+        [self.alpha, self.gamma, self.decay, self.macd_threshold, self.max_grad, self.scale_fac, self.grad, self.mid] = parameters
 
-        self.next_instr: str = ""  # Contains instrument used to determine next row's state (Bull/Bearish)
-        self.current_instr = 0
+        self.next_instr: int = 0  # Contains instrument used to determine next row's state (Bull/Bearish)
+        self.current_instr: int = 0
 
         self.episode: int = 0
-        self.row_index: int = 0
+        self.row_idx: int = 0
         self.length_of_dataset: int = 0
+
+        self.curr_row: list = []
+        self.curr_state_idx: int = 0
+        self.curr_instr: int = 0
+
+        self.prev_row: list = []
+        self.prev_state_idx = None # Set as None, since 0 is a possible choice
+        self.prev_instr: int = 0
+
+        self.next_row: list = []
+        self.next_state_idx: int = 0
+        self.next_instr: int = 0
 
         self.total_decay: float = 0  # Not same as 'decay' which is a constant used to calculate 'total_decay'
 
         self.state_handler = state_manager.StateManager(self.macd_threshold, self.decay)
-        self.instrument_weight = self.state_handler.create_weights()
+        self.instr_weight = self.state_handler.create_weights()
 
         self.reward_handler = reward_manager.CalculateReward(self.max_grad, self.scale_fac, self.grad, self.mid)
 
@@ -157,45 +167,6 @@ class Trainer(TrainingAgent):
 
         self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.decay, self.macd_threshold)
         self.line_plot_handler = graph_manager.LinePlotManager()
-
-    def course_of_action(self, curr_state_idx):
-        """
-        Selects next course of action based on a decaying effect that is similar to an exp ** -x
-        :param curr_state_idx:
-        :return: constants.AVAILABLE_ACTIONS[action_idx]:
-        """
-        self.total_decay = self.calc_total_decay
-        if random.uniform(0, 1) < self.decay:
-            length_actions = range(len(constants.AVAILABLE_ACTIONS))
-            return random.choice(length_actions)
-        else:
-            if random.uniform(0, 1) < 0.1:  # 10% to select wrong value
-                return np.argmin(self.q_table[curr_state_idx])
-            else:
-                return np.argmax(self.q_table[curr_state_idx])
-
-    @property
-    def calc_total_decay(self):
-        _constant = self.decay
-        _numerator = (self.row_index + 1) * (self.episode + 1)
-        _denominator = self.length_of_dataset * self.episodes
-        return float(math.exp(-_constant * (_numerator / _denominator)))
-
-    def get_curr_state(self, previous_row_content, previous_state_index):
-        if previous_row_content is not None and previous_state_index is not None:
-
-            # Since previous row has already been identified, we don't have to look through data set again.
-            current_row_content, current_state_index = previous_row_content, previous_state_index
-            self.current_instr = self.next_instr
-        else:
-            current_row_content = self.dataset.iloc[self.row_index]
-            current_state_index, self.current_instr = self.state_handler.define_state(current_row_content, self.instrument_weight, self.decay)
-        return current_row_content, current_state_index
-
-    def get_next_state(self):
-        next_row_content = self.dataset.iloc[self.row_index + 1]
-        next_state_index, self.next_instr = self.state_handler.define_state(next_row_content, self.instrument_weight, self.decay)
-        return next_row_content, next_state_index
 
     def train(self):
         """
@@ -215,37 +186,69 @@ class Trainer(TrainingAgent):
         """
         total_reward = 0
         for episode in range(self.episodes):
-            episode_reward = 0
-            previous_row_content = None
-            previous_state_index = None
+            eps_reward = 0
             self.episode = episode
-            self.length_of_dataset = len(self.dataset) - self._omit_rows
-            for row_index in range(self.length_of_dataset):
-                self.row_index = row_index
-                # Get state of current row
-                current_row_content, current_state_index = self.get_curr_state(previous_row_content, previous_state_index)
+            self.length_of_dataset = len(self.dataset) - self.omit_rows
+            for row_idx in range(self.length_of_dataset):
+                self.row_idx = row_idx
 
-                # Get state of next row
-                next_row_content, next_state_index = self.get_next_state()
-                previous_row_content, previous_state_index = next_row_content, next_state_index
+                self.get_curr_state()
+                self.get_next_state()
 
-                # Choose course of action
-                action_index = self.course_of_action(current_state_index)
+                self.prev_row = self.next_row
+                self.prev_state_idx = self.next_state_idx
+
+                act_idx = self.course_of_action()
 
                 # Calculates reward based on chosen action
-                reward, updated_instr_weight = self.reward_handler.calculate_reward(current_row_content, next_row_content, action_index, row_index,
-                                                                                    self.instrument_weight, self.current_instr, episode)
-                self.instrument_weight = updated_instr_weight
-                episode_reward += reward
+                reward, self.instr_weight = self.reward_handler.calc_reward(self.curr_row, self.next_row, act_idx, self.row_idx, self.instr_weight, self.current_instr, episode)
+                eps_reward += reward
 
                 # Updates q-table
-                self.q_table = self.q_table_handler.update_q_table(self.q_table, current_state_index, next_state_index, action_index, reward)
+                self.q_table = self.q_table_handler.update_q_table(self.q_table, self.curr_state_idx, self.next_state_idx, act_idx, reward)
 
-            self.reward_history.append(episode_reward)
-            total_reward += episode_reward
+            self.reward_hist.append(eps_reward)
+            total_reward += eps_reward
+
         self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward, self.iterated_values)
-
         return total_reward, self.q_table
+
+    def get_curr_state(self):
+        if len(self.prev_row) != 0 and self.prev_state_idx is not None :
+            # Since previous row has already been identified, we don't have to look through data set again.
+            self.curr_row, self.curr_state_idx = self.prev_row, self.prev_state_idx
+            self.current_instr = self.next_instr
+
+        else:
+            # Happens only initially when 'prev_row' and 'prev_state_idx' = None
+            self.curr_row = self.dataset.iloc[self.row_idx]
+            self.curr_state_idx, self.current_instr = self.state_handler.define_state(self.curr_row, self.instr_weight, self.decay)
+
+    def get_next_state(self):
+        self.next_row = self.dataset.iloc[self.row_idx + 1]
+        self.next_state_idx, self.next_instr = self.state_handler.define_state(self.next_row, self.instr_weight, self.decay)
+
+    def course_of_action(self):
+        """
+        Selects next course of action based on a decaying effect that is similar to an exp ** -x
+        :return: c.AVAIL_ACTIONS[action_idx]:
+        """
+        self.total_decay = self.calc_total_decay
+        if random.uniform(0, 1) < self.decay:
+            length_actions = range(len(c.AVAIL_ACTIONS))
+            return random.choice(length_actions)
+        else:
+            if random.uniform(0, 1) < 0.1:  # 10% to select wrong value
+                return np.argmin(self.q_table[self.curr_state_idx])
+            else:
+                return np.argmax(self.q_table[self.curr_state_idx])
+
+    @property
+    def calc_total_decay(self):
+        constant = self.decay
+        current_iteration = (self.row_idx + 1) * (self.episode + 1)
+        total_iterations = self.length_of_dataset * self.episodes
+        return float(math.exp(-constant * (current_iteration / total_iterations)))
 
     @property
     def get_pair_plot_handler(self):
@@ -305,13 +308,13 @@ if __name__ == "__main__":
         tele_handler = telebot_manager.Notifier(telebot, message)
         tele_handler.send_message("Initiating training - Please await completion message.")
 
-        reward, q_table = Trainer(constants.OPTIMIZE_PARAMETERS).train()  # reward needed only for training
+        reward, q_table = Trainer(c.OPTIMIZE_PARAM).train()  # reward needed only for training
 
         tele_handler.send_message("Training done.")
         tele_handler.send_table(q_table)
         tele_handler.send_message(f"Total reward: {reward}")
 
-        db_file = os.path.abspath(constants.Q_TABLE_DB)
+        db_file = os.path.abspath(c.Q_TABLE_DB)
         database_manager.DBManager(db_file)
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
