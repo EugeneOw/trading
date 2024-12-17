@@ -20,22 +20,21 @@ matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    calls: int = 5
-    episodes: int = 5
-    random_state: int = 42
-    omit_rows: int = 810001  # Minimum: 1
-    
     reward_hist: list[float] = []  # Stores rewards to use in line graph
     iter_values: dict[str: list[float]] = {}  # Stores values that were tested to achieve most optimize reward.
-    
+
+    calls: int = c.CALLS
+    episodes: int = c.EPISODES
+    random_state: int = c.RANDOM_STATE
+    omit_rows: int = c.OMIT_ROWS
     parameters: list[tuple] = c.PARAM_TRAINING
 
     def __init__(self):
         macd_handler = macd.MACD()
         self.dataset = macd_handler.calculate_macd()
-        
+
         self.state_to_index = self.create_state_map
-        
+
         self.omit_rows = TrainingAgent.omit_rows
         self.episodes = TrainingAgent.episodes
         self.iter_values = TrainingAgent.iter_values
@@ -61,20 +60,20 @@ class TrainingAgent:
             - best_params: The best parameters as a separate list.
         """
         optimizer = Optimizer(dimensions=TrainingAgent.parameters, random_state=TrainingAgent.random_state)
-        
+
         for call in range(TrainingAgent.calls):
             params = optimizer.ask()  # 'TrainingAgent.parameters'
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
             tele_handler.send_message(f"Call iteration: {call + 1}/{TrainingAgent.calls}\n")
-            
+
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
         best_value = optimizer.yi[best_idx]
-        
+
         Result = namedtuple("Result", ["x", "fun", "xi", "yi"])
         result = Result(x=best_params, fun=best_value, xi=optimizer.Xi, yi=optimizer.yi)
-        
+
         return result, best_params
 
     @classmethod
@@ -100,10 +99,10 @@ class TrainingAgent:
         :return: None
         """
         training_agent = Trainer(result.x)
-        
+
         pair_plot_handler = training_agent.get_pair_plot_handler
         pair_plot_handler.build_pair_plot(self.iter_values)
-        
+
         line_plot_handler = training_agent.get_line_plot_handler
         line_plot_handler.build_line_plot(self.reward_history, self.episodes, self.calls)
 
@@ -119,7 +118,7 @@ class TrainingAgent:
         best_params_message = "\n".join(f"{param} : {round(value, 4)}" for param, value in zip(c.PARAM_NAME, best_params))
         tele_handler.send_message("Optimization complete!")
         tele_handler.send_message(best_params_message)
-        
+
         db_file = os.path.abspath(c.PATH_DB)
         file_path_manager = database_manager.FilePathManager(db_file)
         file_path = file_path_manager.fetch_file_path(1)
