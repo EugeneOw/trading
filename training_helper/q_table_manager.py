@@ -19,7 +19,8 @@ class QTableManager:
     def create_q_table():
         """
         Creates an empty (all zeroes) q_table of size (available states) by (available actions).
-        :return:
+
+        :return: numpy.array
         """
         return np.zeros((len(constants.STATE_MAP), len(constants.AVAIL_ACTIONS)))
 

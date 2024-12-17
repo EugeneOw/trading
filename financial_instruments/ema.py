@@ -7,6 +7,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt='%d-%m-%Y %H:%M:%S'
 )
+
 file_path: str = '/Users/eugen/Documents/GitHub/trading/forex_data/dataset.csv'
 
 
@@ -18,6 +19,7 @@ class EMA:
     def calculate_ema(self):
         """
         Performs ema calculation.
+
         :return: Returns an updated csv file with new rows of respective EMA periods.
         :rtype: self.dataset: Dataframe
         """
@@ -25,10 +27,7 @@ class EMA:
             ask_bid_price = self.dataset['Ask']+self.dataset['Bid']
             self.dataset['Mid Price'] = ask_bid_price/2
             for ema_period in self.ema_periods:
-                self.dataset[f'EMA {ema_period}'] = self.dataset['Mid Price'].ewm(
-                    span=ema_period,
-                    adjust=False,
-                ).mean()
+                self.dataset[f'EMA {ema_period}'] = self.dataset['Mid Price'].ewm(span=ema_period, adjust=False).mean()
             return self.dataset
         except (AttributeError or KeyError):
             logging.error("Attempting to access non-existent column.")

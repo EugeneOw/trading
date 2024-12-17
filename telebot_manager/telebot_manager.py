@@ -20,7 +20,8 @@ class TeleBotManager:
     @staticmethod
     def retrieve_api_key():
         """
-        Gets api_key from APIKeyExtractor
+        Gets api_key from APIKeyExtractor.
+
         :return: api key
         :rtype: str
         """
@@ -55,29 +56,35 @@ class Notifier(TeleBotManager):
 
     def send_message(self, message):
         """
-        Sends message to specific chat using Telegram bot
+        Sends message to specific chat using Telegram bot.
+
         :param message: The message to be sent
+
         :return: The result of the Telebot send_message method
         """
         return self.telebot.send_message(self.chat_id, message)
 
     def send_photo(self, photo, message):
         """
-        Sends photo to the specific chat using Telegram bot
+        Sends photo to the specific chat using Telegram bot.
+
         :param photo: The image to be sent
         :param message: The message to be sent
+
         :return: The result of the Telebot send_photo method
         """
         return self.telebot.send_photo(self.chat_id, photo, caption=message)
 
     def send_table(self, q_table):
         """
-        Sends q_table to the specific chat using Telegram bot
+        Sends q_table to the specific chat using Telegram bot.
+
         :param q_table: The q_table to be sent
+
         :return: The result of the Telebot send_table method
         """
         table = PrettyTable()
-        table.field_names = ['States'] + constants.AVAILABLE_ACTIONS
-        for state, values in zip(constants.AVAILABLE_STATES, q_table.tolist()):
+        table.field_names = ['States'] + constants.AVAIL_ACTIONS
+        for state, values in zip(constants.AVAIL_STATES, q_table.tolist()):
             table.add_row([state] + values)
         return self.telebot.send_message(self.chat_id, table)

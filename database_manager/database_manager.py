@@ -20,7 +20,8 @@ class FilePathManager(DBManager):
 
     def fetch_file_path(self, file_id):
         """
-        Attempts to fetch file path from database. But creates if it doesn't exist
+        Attempts to fetch file path from database. But creates if it doesn't exist.
+
         :param: file_id: Contains the index of the file's path in the database rows.
         :type: file_id: int
 
@@ -41,7 +42,11 @@ class QTableManager(DBManager):
         super().__init__(db_file)
 
     def create_table(self):
-        """Creates table if doesn't exists"""
+        """
+        Creates table if doesn't exists
+
+        :return: None
+        """
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -53,7 +58,11 @@ class QTableManager(DBManager):
             conn.commit()
 
     def q_table_operation(self, q_table):
-        """Read Q-table from the database, or insert/update accordingly."""
+        """
+        Read Q-table from the database, or insert/update accordingly.
+
+        :return: None
+        """
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT q_table FROM q_table ORDER BY id DESC LIMIT 1')
@@ -67,23 +76,12 @@ class QTableManager(DBManager):
                 self.insert_q_table(serialized_q_table)
             conn.commit()
 
-    def add_timestamp_column(self):
-        with sqlite3.connect(self.db_file) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                    ALTER TABLE q_table ADD COLUMN timestamp DATETIME''')
-            cursor.execute('''
-                    UPDATE q_table
-                    SET timestamp = CURRENT_TIMESTAMP
-                    WHERE timestamp IS NULL''')
-            conn.commit()
-
     def update_q_table(self, serialized_q_table):
-        """Updates q_table (database) with updated q-table
+        """Updates q_table (database) with updated q-table.
+
         :param serialized_q_table: serialized q-table
         :return None
         """
-
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
             cursor.execute('''UPDATE q_table 
@@ -94,18 +92,20 @@ class QTableManager(DBManager):
 
     def insert_q_table(self, serialized_q_table):
         """
-        Inserts q-table into q_table (database)
+        Inserts q-table into q_table (database).
+
         :param serialized_q_table: serialized q-table
         :return: None
         """
         with sqlite3.connect(self.db_file) as conn:
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO q_table (q_table) VALUES (?)',serialized_q_table)
+            cursor.execute('INSERT INTO q_table (q_table) VALUES (?)', serialized_q_table)
             conn.commit()
 
     def read_q_table(self):
         """
         Reads 'q_table'.db and returns the most updated q-table
+
         :return: Most updated q-table
         """
         with sqlite3.connect(self.db_file) as conn:

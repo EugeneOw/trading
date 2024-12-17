@@ -1,11 +1,11 @@
-import logging
-from database_manager import database_manager
-import pandas as pd
 import os
-from constants import constants
+import logging
+import pandas as pd
 import seaborn as sns
 from datetime import datetime
+from constants import constants
 import matplotlib.pyplot as plt
+from database_manager import database_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,13 +24,14 @@ class GraphManager:
 class PairPlotManager(GraphManager):
     def __init__(self, alpha, gamma, epsilon, macd_threshold):
         super().__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.epsilon = epsilon
-        self.macd_threshold = macd_threshold
+        self.alpha: float = alpha
+        self.gamma: float = gamma
+        self.epsilon: float = epsilon
+        self.macd_threshold: float = macd_threshold
+
         self.episode_reward = None
 
-    def store_parameter_pair_plot(self, total_reward, iterated_values):
+    def store_parameter_pair_plot(self, total_reward, iter_values):
         """
         Creates (if !exists) and updates a dictionary(iterated_values) that contains all the parameters used in the
         training and the final reward (total_reward).
@@ -38,8 +39,8 @@ class PairPlotManager(GraphManager):
         :param total_reward: Contains the final reward value calculated and cumulated at the end of every call.
         :type total_reward: float
 
-        :param iterated_values: Contains all parameters and final reward.
-        :type iterated_values: dict
+        :param iter_values: Contains all parameters and final reward.
+        :type iter_values: dict
 
         :return: iterated_values: Returns the dictionary back to training agent to update for next cycle.
         :rtype: iterated_values: dict
@@ -53,11 +54,12 @@ class PairPlotManager(GraphManager):
                 'total_reward': float(total_reward)
             }.items():
 
-                if key in iterated_values:
-                    iterated_values[key].append(value)
+                if key in iter_values:
+                    iter_values[key].append(value)
                 else:
-                    iterated_values[key] = [value]
-            return iterated_values
+                    iter_values[key] = [value]
+            return iter_values
+
         except AttributeError as e:
             logging.error(f"AttributeError: {e} - Ensure self.iterated_parameters is initialized as a dictionary.")
         except TypeError as e:
@@ -66,20 +68,24 @@ class PairPlotManager(GraphManager):
     def build_pair_plot(self, all_iterated_values):
         """
         Builds and saves a pair-plot diagram that shows how different parameters affect other parameters and more
-        importantly the final objective (total_reward)
+        importantly the final objective (total_reward).
 
         :param all_iterated_values: Contains all parameters (of that call) and its final reward (total_reward).
         :type all_iterated_values: dict
 
         :return: None
         """
-        pair_plot_diagram = pd.DataFrame(all_iterated_values)
-        sns.pairplot(pair_plot_diagram)
         current_time = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
         title = f"Pair Plot - Created on {current_time}"
+
+        pair_plot_diagram = pd.DataFrame(all_iterated_values)
+        sns.pairplot(pair_plot_diagram)
+
         plt.suptitle(title, y=0.98, fontsize=14)
         plt.figtext(0.5, 0.95, "", ha='center', fontsize=12, color='grey')
+
         file_path = self.file_path_manager.fetch_file_path(1)
+
         plt.savefig(f"{file_path}/pair plot.png")
 
 
@@ -90,6 +96,7 @@ class LinePlotManager(GraphManager):
     def build_line_plot(self, all_rewards, no_of_episodes, no_of_calls):
         """
         Builds and saves a line plot that shows how the reward (per episode) changes as training goes on.
+
         :param all_rewards: Contains all the rewards
         :type all_rewards: list[float]
 
@@ -102,11 +109,15 @@ class LinePlotManager(GraphManager):
         :return: None
         """
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards, marker='o', color='b', linestyle='-', label='Reward')
+        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
+                 all_rewards,
+                 marker='o', color='b', linestyle='-', label='Reward')
+
         plt.title('Objective')
         plt.xlabel('Episode')
         plt.ylabel('Objective Reward')
         plt.grid(True)
         plt.legend()
+
         file_path = self.file_path_manager.fetch_file_path(1)
         plt.savefig(f"{file_path}/line plot.png")

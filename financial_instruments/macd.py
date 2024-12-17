@@ -18,15 +18,14 @@ class MACD:
 
     def calculate_macd(self):
         """
-        Performs Moving average convergence/divergence calculation
+        Performs Moving average convergence/divergence calculation.
+
         :return: Returns an updated csv file with 1 new row (MACD).
         :rtype: self.dataset: Dataframe
         """
         try:
             self.dataset[f'MACD'] = self.dataset[f'EMA {self.ema_period_1}'] - self.dataset[f'EMA {self.ema_period_2}']
-            self.dataset[f'Signal Line'] = (self.dataset['MACD'].ewm(
-                span=9,
-                adjust=False).mean())
+            self.dataset[f'Signal Line'] = (self.dataset['MACD'].ewm(span=9, adjust=False).mean())
             return self.dataset
         except (AttributeError or KeyError):
             logging.error("Attempting to access non-existent column.")

@@ -1,6 +1,5 @@
 import os
 import math
-import logging
 import random
 import telebot
 import matplotlib
@@ -25,19 +24,19 @@ class TrainingAgent:
     omit_rows: int = 810001  # Minimum: 1
     
     reward_hist: list[float] = []  # Stores rewards to use in line graph
-    iterated_values: dict[str: list[float]] = {}  # Stores values that were tested to achieve most optimize reward.
+    iter_values: dict[str: list[float]] = {}  # Stores values that were tested to achieve most optimize reward.
     
     parameters: list[tuple] = c.PARAM_TRAINING
 
     def __init__(self):
-        _macd = macd.MACD()
-        self.dataset = _macd.calculate_macd()
+        macd_handler = macd.MACD()
+        self.dataset = macd_handler.calculate_macd()
         
         self.state_to_index = self.create_state_map
         
         self.omit_rows = TrainingAgent.omit_rows
         self.episodes = TrainingAgent.episodes
-        self.iterated_values = TrainingAgent.iterated_values
+        self.iter_values = TrainingAgent.iter_values
         self.reward_history = TrainingAgent.reward_hist
 
     @property
@@ -101,7 +100,7 @@ class TrainingAgent:
         training_agent = Trainer(result.x)
         
         pair_plot_handler = training_agent.get_pair_plot_handler
-        pair_plot_handler.build_pair_plot(self.iterated_values)
+        pair_plot_handler.build_pair_plot(self.iter_values)
         
         line_plot_handler = training_agent.get_line_plot_handler
         line_plot_handler.build_line_plot(self.reward_history, self.episodes, self.calls)
@@ -115,8 +114,9 @@ class TrainingAgent:
         :param best_params: The best parameters found during optimization
         :return: None
         """
-        best_params_message = "\n".join(f"Best {name} : {value}" for name, value in zip(c.PARAM_NAME, best_params))
-        tele_handler.send_message(f"Optimization complete!\n{best_params_message}")
+        best_params_message = "\n".join(f"{param} : {round(value, 4)}" for param, value in zip(c.PARAM_NAME, best_params))
+        tele_handler.send_message("Optimization complete!")
+        tele_handler.send_message(best_params_message)
         
         db_file = os.path.abspath(c.PATH_DB)
         file_path_manager = database_manager.FilePathManager(db_file)
@@ -148,7 +148,7 @@ class Trainer(TrainingAgent):
         self.curr_instr: int = 0
 
         self.prev_row: list = []
-        self.prev_state_idx = None # Set as None, since 0 is a possible choice
+        self.prev_state_idx = None  # Set as None, since 0 is a possible choice
         self.prev_instr: int = 0
 
         self.next_row: list = []
@@ -201,7 +201,8 @@ class Trainer(TrainingAgent):
                 act_idx = self.course_of_action()
 
                 # Calculates reward based on chosen action
-                reward, self.instr_weight = self.reward_handler.calc_reward(self.curr_row, self.next_row, act_idx, self.row_idx, self.instr_weight, self.current_instr, episode)
+                reward, self.instr_weight = self.reward_handler.calc_reward(self.curr_row, self.next_row, act_idx, self.row_idx, self.instr_weight,
+                                                                            self.current_instr, episode)
                 eps_reward += reward
 
                 # Updates q-table
@@ -210,11 +211,11 @@ class Trainer(TrainingAgent):
             self.reward_hist.append(eps_reward)
             total_reward += eps_reward
 
-        self.iterated_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward, self.iterated_values)
+        self.iter_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward, self.iter_values)
         return total_reward, self.q_table
 
     def get_curr_state(self):
-        if len(self.prev_row) != 0 and self.prev_state_idx is not None :
+        if len(self.prev_row) != 0 and self.prev_state_idx is not None:
             # Since previous row has already been identified, we don't have to look through data set again.
             self.curr_row, self.curr_state_idx = self.prev_row, self.prev_state_idx
             self.current_instr = self.next_instr

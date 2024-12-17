@@ -1,4 +1,3 @@
-
 PATH_DB: str = "../trading/file_paths.db"
 Q_TABLE_DB: str = "../trading/q_table.db"
 
@@ -9,31 +8,19 @@ AVAIL_ACTIONS: list[str] = ["Long", "Short", "Ignore"]
 AVAIL_INSTR: list[str] = ["MACD", "EMA"]
 AVAIL_STATES: list[str] = ["Bullish", "Bearish", "Neutral"]
 AVAIL_GRAPHS: list[str] = ["pair plot", "line plot"]
+
 OPTIMIZE_PARAM: list[float] = [0.7965429868602331,
-                                    1.0,
-                                    0,
-                                    6.371651421518384,
-                                    -0.1083344942928175,
-                                    -0.9000250841819971,
-                                    0.09725728947351478,
-                                    0.17351721945812074,
-                                    0.08000474078175099,
-                                    36.03553891795412]
+                               0.7550304369598491,
+                               3.449227500681924,
+                               0.000798425078973,
+                               0.09470822304218234,
+                               0.058987708750821426,
+                               0.23503195706327495,
+                               23.348344445560876]
 
-PARAM_NAME: list[str] = ["alpha",
-                              "gamma",
-                              "decay",
-                              "macd threshold",
-                              "max_gradient",
-                              "scaling_factor",
-                              "gradient",
-                              "midpoint"]
+PARAM_NAME: list[str] = ["Alpha", "Gamma", "Decay", "MACD Threshold", "Max Gradient", "Scaling Factor", "Gradient", "Mid-Point"]
+PARAM_TRAINING: list[tuple] = [(0.00, 1.00), (0.70, 1.00), (1.50, 4.00), (0.0005, 0.001),
+                               (0.01, 0.20), (0.01, 0.50), (0.01, 0.50), (10.0, 50.0)]
 
-PARAM_TRAINING: list[tuple] = [(0.00, 1.00),  # alpha
-                                    (0.70, 1.00),  # gamma
-                                    (1.50, 4.00),  # decay / epsilon
-                                    (0.0005, 0.001),  # macd threshold
-                                    (0.01, 0.20),  # max gradient
-                                    (0.01, 0.50),  # scaling
-                                    (0.01, 0.50),  # gradient
-                                    (10.0, 50.0)]  # mid point
+LIVE_INSTR: list[str] = ["USD_JPY,EUR_USD"
+                         ]

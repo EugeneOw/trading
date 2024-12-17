@@ -1,158 +1,188 @@
-import logging
 import numpy as np
-from constants import constants
+from constants import constants as c
 
 
 class CalculateReward:
-    def __init__(self, max_gradient, scaling_factor, gradient, midpoint):
-        self.max_gradient = max_gradient
-        self.scaling_factor = scaling_factor
-        self.gradient = gradient
-        self.midpoint = midpoint
+    def __init__(self, max_grad, scal_fac, grad, mid):
+        self.max_grad = max_grad
+        self.scal_fac = scal_fac
+        self.grad = grad
+        self.mid = mid
 
-        self.current_instrument = None
-        self.instrument_weight = None
-        self.current_instrument_score = None
-        self.constant = None
-        self.split_constant = None
+        self.const = None
+        self.split_const = None
+        self.instr_weight = None
+        self.curr_instr = None
+        self.curr_instr_score = None
 
-    def calc_reward(self, current_row_content, next_row_content, action_index, row_index, instrument_weight, current_instrument, episode):
+    def calc_reward(self, curr_row, next_row, action_idx, row_idx, instr_weight, curr_instr, eps):
         """
         Calculates the reward for selecting correct or wrong decisions.
 
-        :param current_row_content: Contains initial content
-        :type current_row_content: Dataframe
+        :param curr_row: Contains initial content
+        :type curr_row: Dataframe
 
-        :param next_row_content: Contains next row's content
-        :type next_row_content: Dataframe
+        :param next_row: Contains next row's content
+        :type next_row: Dataframe
 
-        :param action_index: Index of constant.AVAILABLE_ACTIONS
-        :type action_index: int
+        :param action_idx: Index of constant.AVAILABLE_ACTIONS
+        :type action_idx: int
 
-        :param instrument_weight: List of instruments weight
-        :type instrument_weight: List[float]
+        :param instr_weight: List of instr weight
+        :type instr_weight: List[float]
 
-        :param current_instrument: Instrument selected for current row
-        :type current_instrument: int
+        :param curr_instr: Instrument selected for current row
+        :type curr_instr: int
 
         :return: return positive or negative profit
         :rtype: float
 
-        :param episode: Contains the number of which episode the training is currently at.
-        :type episode: int
+        :param eps: Contains the number of which eps the training is currently at.
+        :type eps: int
 
-        :param row_index: Contains the index of the dataframe at which the training is currently at.
-        :type row_index: int
+        :param row_idx: Contains the idx of the dataframe at which the training is currently at.
+        :type row_idx: int
 
-        :return: instrument_weight: Contains list of weights allocated to instruments
-        :rtype: instrument_weight: list[float]
+        :return: instr_weight: Contains list of weights allocated to instr
+        :rtype: instr_weight: list[float]
         """
 
-        current_price = current_row_content['Mid Price']
-        next_price = next_row_content['Mid Price']
+        current_price = curr_row['Mid Price']
+        next_price = next_row['Mid Price']
 
-        # Rewards/Punishes the instruments.
-        _buy_and_increase = action_index == 0 and current_price < next_price
-        _sell_and_decrease = action_index == 1 and current_price > next_price
-        if _buy_and_increase or _sell_and_decrease:
-            _outcome = 1
+        # Rewards/Punishes the instr.
+        buy_and_incr = action_idx == 0 and current_price < next_price
+        sell_and_decr = action_idx == 1 and current_price > next_price
+
+        if buy_and_incr or sell_and_decr:
+            outcome = 1
         else:
-            _outcome = 0
-        instrument_weight = self.adjust_reward(instrument_weight, current_instrument, _outcome, episode, row_index)
+            outcome = 0
+
+        instr_weight = self.adjust_reward(instr_weight, curr_instr, outcome, eps, row_idx)
 
         # Adjusts rewards based on action and result.
-        if action_index == 0:
+        if action_idx == 0:
             reward = current_price - next_price
-        elif action_index == 1:
+        elif action_idx == 1:
             reward = next_price - current_price
         else:
-            reward = -0  # Punishment for holding
+            reward = 0
 
-        return reward, instrument_weight
+        return reward, instr_weight
 
-    def dynamic_alpha(self, episode, row_index):
+    def dynamic_alpha(self, eps, row_idx):
         """
-        Calculates the dynamic alpha based on episode and call. Utilizes the sigmoid growth.
-        :param episode: Contains the number of which episode the training is currently at.
-        :type episode: int
+        Calculates the dynamic alpha based on eps and call. Utilizes the sigmoid growth.
+        
+        :param eps: Contains the number of which eps the training is currently at.
+        :type eps: int
 
-        :param row_index: Contains the index of the dataframe at which the training is currently at.
-        :type row_index: int
+        :param row_idx: Contains the idx of the dataframe at which the training is currently at.
+        :type row_idx: int
 
         :return: Returns dynamic alpha for calculating reward/punishment
         """
-        _sigmoid_component = self.scaling_factor / (1 + np.exp(-self.gradient * (episode - self.midpoint)))
-        _log_component = np.log(row_index + 1)
-        _constant = min(_sigmoid_component * _log_component, self.max_gradient)
-        return _constant
+        
+        sigmoid_compn = self.scal_fac / (1 + np.exp(-self.grad * (eps - self.mid)))
+        log_compn = np.log(row_idx + 1)
+        constant = min(sigmoid_compn * log_compn, self.max_grad)
+        return constant
 
-    @property
-    def split_weight(self):
-        return self.constant / (len(constants.AVAIL_INSTR)-1)
-
-    @property
-    def get_curr_instrument_score(self):
-        return self.instrument_weight[self.current_instrument]
-
-    def punish_main_instrument(self):
-        self.instrument_weight[self.current_instrument] = (self.current_instrument_score - self.constant)
-
-    def reward_other_instrument(self):
-        _remaining_instruments = [
-            idx for idx in range(len(constants.AVAIL_INSTR))
-            if idx != self.current_instrument
-        ]
-        for idx in _remaining_instruments:
-            self.instrument_weight[idx] += self.split_constant
-
-    def reward_main_instrument(self):
-        self.instrument_weight[self.current_instrument] = (self.current_instrument_score + self.constant)
-
-    def punish_other_instrument(self):
-        _remaining_instruments = [
-            idx for idx in range(len(constants.AVAIL_INSTR))
-            if idx != self.current_instrument
-        ]
-        for idx in _remaining_instruments:
-            self.instrument_weight[idx] -= self.split_constant
-
-    def adjust_reward(self, instrument_weight, current_instrument, outcome, episode, row_index):
+    def adjust_reward(self, instr_weight, curr_instr, outcome, eps, row_idx):
         """
-        Adjusts the table (instrument_weight) accordingly depending on whether it was a right (outcome: 1) or wrong
-        decision (outcome:0)
-        :param instrument_weight: List containing all the weights allocated to instruments
-        :type instrument_weight: list[float]
+        Adjusts the table (instr_weight) accordingly depending on whether it was a right (outcome: 1) or wrong
+        decision (outcome:0).
+        
+        :param instr_weight: List containing all the weights allocated to instrument
+        :type instr_weight: list[float]
 
-        :param current_instrument: Currently selected instrument
-        :type current_instrument: int
+        :param curr_instr: Currently selected instrument
+        :type curr_instr: int
 
         :param outcome: Outcome of action, right (outcome: 1) and wrong (outcome:0)
         :type outcome: int
 
-        :param episode: Contains the number of which episode the training is currently at.
-        :type episode: int
+        :param eps: Contains the number of which eps the training is currently at.
+        :type eps: int
 
-        :param row_index: Contains the index of the dataframe at which the training is currently at.
-        :type row_index: int
+        :param row_idx: Contains the idx of the dataframe at which the training is currently at.
+        :type row_idx: int
 
-        :return: instrument_weight: List containing all the weights allocated to instruments
+        :return: instr_weight: List containing all the weights allocated to instrument
         :rtype: list[float]
         """
 
-        self.instrument_weight = instrument_weight
-        self.current_instrument = current_instrument
+        self.instr_weight = instr_weight
+        self.curr_instr = curr_instr
 
-        self.current_instrument_score = self.get_curr_instrument_score
+        self.curr_instr_score = self.get_curr_instr_score
 
-        self.constant = self.dynamic_alpha(episode, row_index)
+        self.const = self.dynamic_alpha(eps, row_idx)
 
-        self.split_constant = self.split_weight
+        self.split_const = self.split_weight
 
         if outcome == 0:
-            self.reward_other_instrument()
-            self.punish_main_instrument()
+            self.reward_other_instr()
+            self.punish_main_instr()
         else:
-            self.reward_main_instrument()
-            self.punish_other_instrument()
+            self.reward_main_instr()
+            self.punish_other_instr()
 
-        return instrument_weight
+        return instr_weight
+
+    @property
+    def split_weight(self):
+        """
+        Returns the weight split among all but 1 instr.
+        
+        :return: split weight 
+        :rtype: float
+        """
+        return self.const / (len(c.AVAIL_INSTR) - 1)
+
+    @property
+    def get_curr_instr_score(self):
+        return self.instr_weight[self.curr_instr]
+
+    def punish_main_instr(self):
+        """
+        Punishes main instrument for selecting wrong outcome.
+        
+        :return: None 
+        """
+        self.instr_weight[self.curr_instr] = (self.curr_instr_score - self.const)
+
+    def reward_other_instr(self):
+        """
+        When punishing main instrument, the rest will be rewarded. This is to keep a fair
+        balance such that instruments that aren't affected have a higher chance of being
+        selected the next time. Furthermore, if instruments are constantly punished, and
+        only rewarded when correct. They tend to reach zero quickly, as the initial phase
+        is largely used to make assumptions and learning
+
+        :return: None
+        """
+        remaining_instr = [
+            idx for idx in range(len(c.AVAIL_INSTR))
+            if idx != self.curr_instr
+        ]
+        for idx in remaining_instr:
+            self.instr_weight[idx] += self.split_const
+
+    def reward_main_instr(self):
+        """
+        Reward main instrument for selecting correct outcome.
+
+        :return: None
+        """
+        self.instr_weight[self.curr_instr] = (self.curr_instr_score + self.const)
+
+    def punish_other_instr(self):
+        remaining_instr = [
+            idx for idx in range(len(c.AVAIL_INSTR))
+            if idx != self.curr_instr
+        ]
+        for idx in remaining_instr:
+            self.instr_weight[idx] -= self.split_const
+

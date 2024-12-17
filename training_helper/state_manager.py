@@ -15,7 +15,7 @@ class StateManager:
         self.epsilon: float = epsilon
 
         self.state_map = constants.STATE_MAP
-        self.avail_instrument = constants.AVAIL_INSTR
+        self.avail_instr = constants.AVAIL_INSTR
         self.avail_actions = constants.AVAIL_ACTIONS
         self.ema_period_1 = constants.EMA_PERIODS[0]
         self.ema_period_2 = constants.EMA_PERIODS[1]
@@ -23,7 +23,8 @@ class StateManager:
     @staticmethod
     def create_weights():
         """
-        Creates a list that stores equally distributed amount of weights
+        Creates a list that stores equally distributed amount of weights.
+
         :return:
         :rtype: list[float]
         """
@@ -35,6 +36,7 @@ class StateManager:
         Defines the state of each row. The list that contains the weights of each instrument is used to determine,
         which instrument is best suited for this but is not updated. It is updated only later when we calculate the
         reward.
+
         :param curr_row: Contains details of each individual row
 
         :param instr_weight: Contains weights of each individual instrument
@@ -77,7 +79,8 @@ class StateManager:
 
     def macd_state(self, macd, signal_line):
         """
-        Performs calculations and determines if current row belongs to Buy or Sell state
+        Performs calculations and determines if current row belongs to Buy or Sell state.
+
         :param macd: MACD value of row
         :type macd: float
 
@@ -91,7 +94,7 @@ class StateManager:
         :return: instrument: Instrument used to perform this deduction.
         :rtype: instrument: int
         """
-        instrument = self.avail_instrument.index("MACD")
+        instrument = self.avail_instr.index("MACD")
         if (macd > signal_line) and (macd - signal_line) < self.macd_threshold:
             action = self.state_map[self.avail_actions[0]]
         elif (macd < signal_line) and (signal_line - macd) < self.macd_threshold:
@@ -102,7 +105,8 @@ class StateManager:
 
     def ema_state(self, ema_12, ema_26):
         """
-        Performs calculations and determines if current row belongs to Buy or Sell state
+        Performs calculations and determines if current row belongs to Buy or Sell state.
+
         :param ema_12: MACD value of row
         :type ema_12: float
 
@@ -116,7 +120,7 @@ class StateManager:
         :return: instrument: Instrument used to perform this deduction.
         :rtype: instrument: int
         """
-        instrument = self.avail_instrument.index("EMA")
+        instrument = self.avail_instr.index("EMA")
         if (ema_12 - ema_26) > 0:
             action = self.state_map[self.avail_actions[0]]
         else:
