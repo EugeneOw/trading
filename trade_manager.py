@@ -1,7 +1,6 @@
+import math
 import os
 import random
-
-import matplotlib.pyplot as plt
 import telebot
 import matplotlib
 import numpy as np
@@ -12,6 +11,7 @@ from live_data import live_fx_data
 from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
 import logging
 
@@ -24,7 +24,7 @@ class TrainingAgent:
 
     _call_count: int = 0
     _random_state: int = 42
-    _number_of_calls: int = 100
+    _number_of_calls: int = 20
     _number_of_episodes: int = 5
     _number_of_omitted_rows: int = 1  # Minimum: 1
 
@@ -133,7 +133,6 @@ class Trainer(TrainingAgent):
         [self.alpha,
          self.gamma,
          self.epsilon,
-         self.decay,
          self.macd_threshold,
          self.max_gradient,
          self.scaling_factor,
@@ -143,6 +142,9 @@ class Trainer(TrainingAgent):
         self.next_instrument = ""
         self.current_instrument = 0
         self.row_index = 0
+        self.episode = 0
+        self.length_of_dataset = 0
+        self.decay = 0
 
         self.state_handler = state_manager.StateManager(self.macd_threshold, self.epsilon)
         self.instrument_weight = self.state_handler.create_weights()
@@ -152,23 +154,31 @@ class Trainer(TrainingAgent):
         self.q_table_handler = q_table_manager.QTableManager(self.alpha, self.gamma)
         self.q_table = self.q_table_handler.create_q_table()
 
-        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.epsilon, self.decay, self.macd_threshold)
+        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.epsilon, self.macd_threshold)
         self.line_plot_handler = graph_manager.LinePlotManager()
 
     def course_of_action(self, curr_state_idx):
         """
-
+        Selects next course of action based on a decaying effect that is similar to an exp ** -x
         :param curr_state_idx:
         :return: constants.AVAILABLE_ACTIONS[action_idx]:
         """
-        if random.uniform(0, 1) < self.epsilon:
+        self.decay = self.get_decay
+        if random.uniform(0, 1) < self.decay:
+            length_actions = range(len(constants.AVAILABLE_ACTIONS))
+            return random.choice(length_actions)
+        else:
             if random.uniform(0, 1) < 0.1:  # 10% to select wrong value
                 return np.argmin(self.q_table[curr_state_idx])
             else:
-                length_actions = range(len(constants.AVAILABLE_ACTIONS))
-                return random.choice(length_actions)
-        else:
-            return np.argmax(self.q_table[curr_state_idx])
+                return np.argmax(self.q_table[curr_state_idx])
+
+    @property
+    def get_decay(self):
+        _constant = self.epsilon
+        _numerator = (self.row_index+1) * (self.episode+1)
+        _denominator = self.length_of_dataset*self.number_of_episodes
+        return float(math.exp(-_constant * (_numerator / _denominator)))
 
     def get_curr_state(self, previous_row_content, previous_state_index):
         if previous_row_content is not None and previous_state_index is not None:
@@ -178,12 +188,12 @@ class Trainer(TrainingAgent):
             self.current_instrument = self.next_instrument
         else:
             current_row_content = self.dataset.iloc[self.row_index]
-            current_state_index, self.current_instrument = self.state_handler.define_state(current_row_content, self.instrument_weight)
+            current_state_index, self.current_instrument = self.state_handler.define_state(current_row_content, self.instrument_weight, self.decay)
         return current_row_content, current_state_index
 
     def get_next_state(self):
         next_row_content = self.dataset.iloc[self.row_index + 1]
-        next_state_index, self.next_instrument = self.state_handler.define_state(next_row_content, self.instrument_weight)
+        next_state_index, self.next_instrument = self.state_handler.define_state(next_row_content, self.instrument_weight, self.decay)
         return next_row_content, next_state_index
 
     def train(self):
@@ -207,7 +217,9 @@ class Trainer(TrainingAgent):
             episode_reward = 0
             previous_row_content = None
             previous_state_index = None
-            for row_index in range(len(self.dataset) - self.n_of_omitted_rows):
+            self.episode = episode
+            self.length_of_dataset = len(self.dataset) - self.n_of_omitted_rows
+            for row_index in range(self.length_of_dataset):
                 self.row_index = row_index
                 # Get state of current row
                 current_row_content, current_state_index = self.get_curr_state(previous_row_content, previous_state_index)
@@ -251,6 +263,21 @@ class Trainer(TrainingAgent):
         :return: The line plot handler object associate with this instance.
         """
         return self.line_plot_handler
+
+
+class TestingAgent:
+    def __init__(self, _stream_data):
+        self._stream_data = _stream_data
+        self._data_compartment()
+
+
+    def _data_compartment(self):
+        logging.info(self._stream_data)
+
+
+class Tester(TestingAgent):
+    def __init__(self):
+        return
 
 
 if __name__ == "__main__":
@@ -307,7 +334,9 @@ if __name__ == "__main__":
         :param message: Message object containing details of the '/test' command
         :return: None
         """
-        live_fx_data.LiveFX().get_stream()
-
+        live_fx_handler = live_fx_data.LiveFX()
+        executor = ThreadPoolExecutor(max_workers=2)
+        _stream_data = executor.submit(live_fx_handler.get_stream())
+        TestingAgent(_stream_data.result())
 
     telebot.infinity_polling()

@@ -22,12 +22,11 @@ class GraphManager:
 
 
 class PairPlotManager(GraphManager):
-    def __init__(self, alpha, gamma, epsilon, decay, macd_threshold):
+    def __init__(self, alpha, gamma, epsilon, macd_threshold):
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
-        self.decay = decay
         self.macd_threshold = macd_threshold
         self.episode_reward = None
 
@@ -50,7 +49,6 @@ class PairPlotManager(GraphManager):
                 'alpha': self.alpha,
                 'gamma': self.gamma,
                 'epsilon': self.epsilon,
-                'decay': int(self.decay),
                 'macd': self.macd_threshold,
                 'total_reward': float(total_reward)
             }.items():

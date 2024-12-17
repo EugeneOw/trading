@@ -53,7 +53,7 @@ class LiveFX:
                     for line in response.iter_lines():
                         if line:
                             data = json.loads(line.decode("utf-8"))
-                            logging.info(json.dumps(data, indent=4))
+                            return data
             except requests.exceptions.RequestException as e:
                 logging.error(f"An error occurred: {e}")
                 logging.info("Reconnecting to the stream...")
