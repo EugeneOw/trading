@@ -1,13 +1,15 @@
 import os
 import math
+import pytz
 import random
 import telebot
 import matplotlib
 import numpy as np
 from skopt import Optimizer
-from constants import constants as c
+from datetime import datetime
 from collections import namedtuple
 from live_data import live_fx_data
+from constants import constants as c
 from financial_instruments import macd
 from telebot_manager import telebot_manager
 from database_manager import database_manager
@@ -18,8 +20,8 @@ matplotlib.use('Agg')
 
 
 class TrainingAgent:
-    calls: int = 1
-    episodes: int = 1
+    calls: int = 5
+    episodes: int = 5
     random_state: int = 42
     omit_rows: int = 810001  # Minimum: 1
     
@@ -122,11 +124,16 @@ class TrainingAgent:
         file_path_manager = database_manager.FilePathManager(db_file)
         file_path = file_path_manager.fetch_file_path(1)
 
+        singapore_timezone = pytz.timezone("Asia/Singapore")
+
         for graph in c.AVAIL_GRAPHS:
             image_path = f"{file_path}{graph}.png"
             try:
+                singapore_time = datetime.now(singapore_timezone)
+                formatted_now = singapore_time.strftime("%d-%m-%Y %H:%M:%S")
                 with open(image_path, 'rb') as photo:
-                    tele_handler.send_photo(photo, {graph})
+                    message = f"Graph Type: {graph}\nTime: {str(formatted_now)}"
+                    tele_handler.send_photo(photo, {message})
             except FileNotFoundError or Exception:
                 tele_handler.send_message("Image file not found.")
 
@@ -284,7 +291,7 @@ if __name__ == "__main__":
         :return: None
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Initiating optimizing.")
+        tele_handler.send_message("Initiating optimizing - Please await completion message.")
 
         # Resets '_reward_history' to prevent re-running from wrongly
         # appending '_reward_history' to previous attempts.

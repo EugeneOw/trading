@@ -7,7 +7,7 @@ STATE_MAP: dict = {"Long": 0, "Short": 1, "Ignore": 2}
 AVAIL_ACTIONS: list[str] = ["Long", "Short", "Ignore"]
 AVAIL_INSTR: list[str] = ["MACD", "EMA"]
 AVAIL_STATES: list[str] = ["Bullish", "Bearish", "Neutral"]
-AVAIL_GRAPHS: list[str] = ["pair plot", "line plot"]
+AVAIL_GRAPHS: list[str] = ["Pair Plot", "Line Plot"]
 
 OPTIMIZE_PARAM: list[float] = [0.7965429868602331,
                                0.7550304369598491,
