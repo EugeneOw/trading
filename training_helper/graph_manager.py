@@ -3,8 +3,8 @@ import logging
 import pandas as pd
 import seaborn as sns
 from datetime import datetime
-from constants import constants
 import matplotlib.pyplot as plt
+from constants import constants as c
 from database_manager import database_manager
 
 logging.basicConfig(
@@ -16,7 +16,7 @@ logging.basicConfig(
 
 class GraphManager:
     def __init__(self):
-        self.db_file = os.path.abspath(constants.PATH_DB)
+        self.db_file = os.path.abspath(c.PATH_DB)
         database_manager.DBManager(self.db_file)
         self.file_path_manager = database_manager.FilePathManager(self.db_file)
 

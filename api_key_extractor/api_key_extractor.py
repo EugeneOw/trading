@@ -12,17 +12,19 @@ logging.basicConfig(
 
 
 class APIKeyExtractor:
-    def __init__(self):
+    def __init__(self, row_id):
+        self.row_id = row_id
         self.db_file = os.path.abspath(constants.PATH_DB)
 
         file_path_handler = database_manager.FilePathManager(self.db_file)
-        self.rtf_file_path = file_path_handler.fetch_file_path(2)
+        self.rtf_file_path = file_path_handler.fetch_file_path(self.row_id)
 
     def extract_api_key(self):
         """
         Extracts API key from an RTF file stored somewhere.
 
         :return: Extracted API key as a string
+        :rtype: str
         """
         try:
             with open(self.rtf_file_path, 'r') as file:

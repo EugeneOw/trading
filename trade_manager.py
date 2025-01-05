@@ -5,15 +5,17 @@ import random
 import telebot
 import matplotlib
 import numpy as np
+import pandas as pd
 from skopt import Optimizer
 from datetime import datetime
 from collections import namedtuple
 from live_data import live_fx_data
 from constants import constants as c
-from financial_instruments import macd
+import dataset_manager.dataset_manager
+from news_manager import news_manager
+from dataset_manager import dataset_manager
 from telebot_manager import telebot_manager
 from database_manager import database_manager
-from concurrent.futures import ThreadPoolExecutor
 from training_helper import reward_manager, graph_manager, q_table_manager, state_manager
 
 matplotlib.use('Agg')
@@ -30,15 +32,20 @@ class TrainingAgent:
     parameters: list[tuple] = c.PARAM_TRAINING
 
     def __init__(self):
-        macd_handler = macd.MACD()
-        self.dataset = macd_handler.calculate_macd()
-
         self.state_to_index = self.create_state_map
+        self.dataset = pd.read_csv(self.get_dataset)
 
         self.omit_rows = TrainingAgent.omit_rows
         self.episodes = TrainingAgent.episodes
         self.iter_values = TrainingAgent.iter_values
         self.reward_history = TrainingAgent.reward_hist
+
+    @property
+    def get_dataset(self):
+        db_file = os.path.abspath(c.PATH_DB)
+        database_manager.DBManager(db_file)
+        file_path_manager = database_manager.FilePathManager(db_file)
+        return file_path_manager.fetch_file_path(4)
 
     @property
     def create_state_map(self):
@@ -280,6 +287,17 @@ if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
 
+    @telebot.message_handler(commands=['build'])
+    def build(message):
+        """
+        Builds ('dataset_manager') and update ('forex_data') with a new dataset that
+        we can process with 'financial_instruments'
+        """
+        tele_handler = telebot_manager.Notifier(telebot, message)
+        tele_handler.send_message("Building new dataset - Please await completion message.")
+        dataset_manager.DatasetManager()
+        tele_handler.send_message("Dataset has been build.")
+
 
     @telebot.message_handler(commands=['optimize'])
     def optimize(message):
@@ -301,8 +319,8 @@ if __name__ == "__main__":
         result, best_params = training_agent.gaussian_process(tele_handler)
 
         # Builds graph and sends telegram message to inform completion.
-        TrainingAgent().build_graphs(result)
-        TrainingAgent().review_summary(tele_handler, best_params)
+        training_agent.build_graphs(result)
+        training_agent.review_summary(tele_handler, best_params)
 
 
     @telebot.message_handler(commands=['train'])
@@ -336,8 +354,18 @@ if __name__ == "__main__":
         :return: None
         """
         live_fx_handler = live_fx_data.LiveFX()
-        executor = ThreadPoolExecutor(max_workers=2)
-        stream_data = executor.submit(live_fx_handler.get_stream())
+        live_fx_handler.get_stream()
+        #executor = ThreadPoolExecutor(max_workers=2)
+        #stream_data = executor.submit(live_fx_handler.get_stream())
 
+    @telebot.message_handler(commands=['news'])
+    def retrieve_news(message):
+        tele_handler = telebot_manager.Notifier(telebot, message)
+        tele_handler.send_message("Retrieving news - Please await completion message.")
+
+        news_handler = news_manager.NewsManager()
+        news_handler.setUp()
+        news_handler.start_test()
+        tele_handler.send_message(f"{c.ARTICLES} news has been retrieved.")
 
     telebot.infinity_polling()

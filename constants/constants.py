@@ -1,28 +1,26 @@
 PATH_DB: str = "../trading/file_paths.db"
 Q_TABLE_DB: str = "../trading/q_table.db"
 
-CALLS: int = 1
-EPISODES: int = 5
-RANDOM_STATE: int = 42
-OMIT_ROWS: int = 1  # Minimum 1
+WEBPAGE: str = "https://www.google.com"
+TIME_OUT: int = 5  # seconds before time-out
+ARTICLES: int = 5  # Number of articles to summarise
 
+CALLS: int = 1  # Changes parameters
+EPISODES: int = 5  # Extends the test / cycle
+OMIT_ROWS: int = 1  # Minimum 1
+RANDOM_STATE: int = 42
+
+RSI_PERIODS: list[int] = [14]
+SMA_PERIODS: list[int] = [20]
 EMA_PERIODS: list[int] = [12, 26]
 LIVE_INSTR: list[str] = ["USD_JPY,EUR_USD"]
 STATE_MAP: dict = {"Long": 0, "Short": 1, "Ignore": 2}
 
-AVAIL_ACTIONS: list[str] = ["Long", "Short", "Ignore"]
-AVAIL_INSTR: list[str] = ["MACD", "EMA"]
-AVAIL_STATES: list[str] = ["Bullish", "Bearish", "Neutral"]
+AVAIL_INSTR: list[str] = ["MACD", "EMA", "B-Bands", "RSI"]
 AVAIL_GRAPHS: list[str] = ["Pair Plot", "Line Plot"]
+AVAIL_ACTIONS: list[str] = ["Long", "Short", "Ignore"]
+AVAIL_STATES: list[str] = ["Bullish", "Bearish", "Neutral"]
 
-OPTIMIZE_PARAM: list[float] = [0.7965429868602331,
-                               0.7550304369598491,
-                               3.449227500681924,
-                               0.000798425078973,
-                               0.09470822304218234,
-                               0.058987708750821426,
-                               0.23503195706327495,
-                               23.348344445560876]
 
 PARAM_NAME: list[str] = ["Alpha", "Gamma", "Decay", "MACD Threshold",
                          "Max Gradient", "Scaling Factor", "Gradient", "Mid-Point"]
@@ -30,6 +28,16 @@ PARAM_NAME: list[str] = ["Alpha", "Gamma", "Decay", "MACD Threshold",
 PARAM_TRAINING: list[tuple] = [(0.00, 1.00), (0.70, 1.00), (1.50, 4.00), (0.0005, 0.001),
                                (0.01, 0.20), (0.01, 0.50), (0.01, 0.50), (10.0, 50.0)]
 
+OPTIMIZE_PARAM: list[float] = [0.00711,
+                               0.9686,
+                               2.4743,
+                               0.0009,
+                               0.1348,
+                               0.4403,
+                               0.4889,
+                               48.474]
 
-
+PROMPT: str = ("Visit this website. Give me a 30 second summary of it. "
+               "You are not to read it back in bullet point form, but rather in a paragraph. "
+               "If you're unable to access the link, reply 'Error'.")
 

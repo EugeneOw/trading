@@ -32,7 +32,7 @@ class LiveFX:
 
         :return: None
         """
-        handler = api_key_extractor.APIKeyExtractor()
+        handler = api_key_extractor.APIKeyExtractor(2)
         return handler.extract_api_key()
 
     def get_stream(self):
@@ -46,14 +46,15 @@ class LiveFX:
                 with requests.get(f"{self.url}/{self.account_id}/pricing/stream",
                                   headers=self.headers, params=self.params,
                                   stream=True) as response:
-                    if response.status_code == 200:
+                    if response.status_code != 200:
+                        logging.error(f"Unable to connect to stream. Status code: {response.status_code}")
+                        logging.error(response.json())
+                    else:
                         for line in response.iter_lines():
                             if line:
                                 data = json.loads(line.decode("utf-8"))
+                                logging.info(json.dumps(data, indent=4))
                                 return data
-                    else:
-                        logging.error(f"Unable to connect to stream. Status code: {response.status_code}")
-                        logging.error(response.json())
                         break
             except requests.exceptions.RequestException as e:
                 logging.error(f"An error occurred: {e}")

@@ -1,3 +1,3 @@
 # Ignore SQLite database file
 *.db
-
+*.csv

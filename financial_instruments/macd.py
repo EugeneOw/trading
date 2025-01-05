@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-from constants import constants
+from constants import constants as c
 from financial_instruments import ema
 
 logging.basicConfig(
@@ -12,9 +12,10 @@ logging.basicConfig(
 
 class MACD:
     def __init__(self):
-        self.dataset = ema.EMA().calculate_ema()
-        self.ema_period_1 = constants.EMA_PERIODS[0]
-        self.ema_period_2 = constants.EMA_PERIODS[1]
+        ema_handler = ema.EMA()
+        self.dataset = ema_handler.calculate_ema()
+        self.ema_period_1 = c.EMA_PERIODS[0]
+        self.ema_period_2 = c.EMA_PERIODS[1]
 
     def calculate_macd(self):
         """

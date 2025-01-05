@@ -25,7 +25,7 @@ class TeleBotManager:
         :return: api key
         :rtype: str
         """
-        api_key = api_key_extractor.APIKeyExtractor()
+        api_key = api_key_extractor.APIKeyExtractor(2)
         api_key = api_key.extract_api_key()[0]
         return api_key
 

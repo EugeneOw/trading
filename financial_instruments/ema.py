@@ -1,6 +1,8 @@
 import logging
+import os.path
 import pandas as pd
-from constants import constants
+from constants import constants as c
+from database_manager import database_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -8,13 +10,20 @@ logging.basicConfig(
     datefmt='%d-%m-%Y %H:%M:%S'
 )
 
-file_path: str = '/Users/eugen/Documents/GitHub/trading/forex_data/dataset.csv'
 
-
-class EMA:
+class FileManager:
     def __init__(self):
-        self.ema_periods = constants.EMA_PERIODS
-        self.dataset = pd.read_csv(file_path)
+        self.db_file = os.path.abspath(c.PATH_DB)
+        database_manager.DBManager(self.db_file)
+        self.file_path_manager = database_manager.FilePathManager(self.db_file)
+
+
+class EMA(FileManager):
+    def __init__(self):
+        super().__init__()
+        self.ema_periods = c.EMA_PERIODS
+        self.csv_path = self.file_path_manager.fetch_file_path(4)
+        self.dataset = pd.read_csv(self.csv_path)
 
     def calculate_ema(self):
         """
@@ -24,6 +33,7 @@ class EMA:
         :rtype: self.dataset: Dataframe
         """
         try:
+            self.dataset = self.dataset.drop(self.dataset.columns[0], axis=1)
             ask_bid_price = self.dataset['Ask']+self.dataset['Bid']
             self.dataset['Mid Price'] = ask_bid_price/2
             for ema_period in self.ema_periods:

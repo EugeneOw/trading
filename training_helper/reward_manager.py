@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 from constants import constants as c
 
 
@@ -58,7 +59,6 @@ class CalculateReward:
             outcome = 1
         else:
             outcome = 0
-
         instr_weight = self.adjust_reward(instr_weight, curr_instr, outcome, eps, row_idx)
 
         # Adjusts rewards based on action and result.
