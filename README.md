@@ -56,20 +56,15 @@ for the ease of user experience and flexibility.
 ## Features:
 ### **1. Dynamic Instrument Weight:**
 The model dynamically adjusts the weight of the instruments based on their performance.
-
 If an instrument makes the correct prediction, it is rewarded while others are penalized.
-
 The instrument's weights start off equally distributed but are adjusted to focus on the most relevant instruments with weights normalized to 1.
 
 ### **2. Dynamic Decay:**
 The rewards and punishment are governed by a decay function that follows a sigmoid curve. 
-
 This allows for a more forgiving behavior in the earlier stages of training, but gradually reduces tolerance for errors as the model matures.
 
 ### **3. Q-Learning and Q-table:**
-The agent is trained using Q-Learning, a reinforcement learning algorithm.
-
-A Q-table is used to store state-action values (hold, long and short). Enabling the agent to make decisions based on experience while improving
+The agent is trained using Q-Learning, a reinforcement learning algorithm. A Q-table is used to store state-action values (hold, long and short). Enabling the agent to make decisions based on experience while improving
 its performance over time.
 
 ### **4. Bayesian Optimization:**
