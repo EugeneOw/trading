@@ -365,7 +365,10 @@ if __name__ == "__main__":
 
         news_handler = news_manager.NewsManager()
         news_handler.setUp()
-        news_handler.start_test()
-        tele_handler.send_message(f"{c.ARTICLES} news has been retrieved.")
+        content = news_handler.start_test(message)
+
+        for url, message in content.items():
+            tele_handler.send_message(f"\n***{message[0].upper()}:*** \n{message[1]}\n{url}")
+        tele_handler.send_message(f"{c.ARTICLES} has been retrieved.")
 
     telebot.infinity_polling()

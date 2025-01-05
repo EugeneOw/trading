@@ -54,7 +54,7 @@ class Notifier(TeleBotManager):
         self.telebot = tbot
         self.chat_id = message.chat.id
 
-    def send_message(self, message):
+    def send_message(self, message, bold=False):
         """
         Sends message to specific chat using Telegram bot.
 
@@ -62,7 +62,9 @@ class Notifier(TeleBotManager):
 
         :return: The result of the Telebot send_message method
         """
-        return self.telebot.send_message(self.chat_id, message)
+        if bold:
+            message = f"*{message}*"
+        return self.telebot.send_message(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
 
     def send_photo(self, photo, message):
         """
