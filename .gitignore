@@ -1,3 +1,5 @@
 *.db
 *.csv
 constants/*.py
+database_manager/datasets/
+forex_data/dataset.csv
