@@ -7,7 +7,7 @@ ARTICLES: int = 5  # Number of articles to summarise
 
 CALLS: int = 1  # Changes parameters
 EPISODES: int = 5  # Extends the test / cycle
-OMIT_ROWS: int = 1  # Minimum 1
+OMIT_ROWS: int = 810001  # Minimum 1
 RANDOM_STATE: int = 42
 
 RSI_PERIODS: list[int] = [14]
@@ -37,7 +37,7 @@ OPTIMIZE_PARAM: list[float] = [0.00711,
                                0.4889,
                                48.474]
 
-PROMPT: str = ("Visit this website. Give me a 30 second summary of it. "
-               "You are not to read it back in bullet point form, but rather in a paragraph. "
-               "If you're unable to access the link, reply 'Error'.")
+PROMPT: str = ("Please visit the website link below and provide a 30-second summary in paragraph form. Focus on the key points of the content and "
+               "offer a brief overview. Avoid including unnecessary details, but ensure the response is informative and concise.If you’re unable to "
+               "access the link, please reply ‘Error'")
 

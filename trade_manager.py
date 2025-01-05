@@ -40,6 +40,8 @@ class TrainingAgent:
         self.iter_values = TrainingAgent.iter_values
         self.reward_history = TrainingAgent.reward_hist
 
+        print("Initialize")
+
     @property
     def get_dataset(self):
         db_file = os.path.abspath(c.PATH_DB)
@@ -72,7 +74,7 @@ class TrainingAgent:
             params = optimizer.ask()  # 'TrainingAgent.parameters'
             reward = TrainingAgent.objective(params)
             optimizer.tell(params, reward)
-            tele_handler.send_message(f"Call iteration: {call + 1}/{TrainingAgent.calls}\n")
+            tele_handler.send_message(f"<b>Call iteration:</b> <i>{call + 1}/{TrainingAgent.calls}</i>\n")
 
         best_idx = np.argmin(optimizer.yi)
         best_params = optimizer.Xi[best_idx]
@@ -122,8 +124,7 @@ class TrainingAgent:
         :param best_params: The best parameters found during optimization
         :return: None
         """
-        best_params_message = "\n".join(f"{param} : {round(value, 4)}" for param, value in zip(c.PARAM_NAME, best_params))
-        tele_handler.send_message("Optimization complete!")
+        best_params_message = "\n".join(f"<b>{param}:</b> <i><code>{value}</code></i>" for param, value in zip(c.PARAM_NAME, best_params))
         tele_handler.send_message(best_params_message)
 
         db_file = os.path.abspath(c.PATH_DB)
@@ -138,7 +139,7 @@ class TrainingAgent:
                 singapore_time = datetime.now(singapore_timezone)
                 formatted_now = singapore_time.strftime("%d-%m-%Y %H:%M:%S")
                 with open(image_path, 'rb') as photo:
-                    message = f"Graph Type: {graph}\nTime: {str(formatted_now)}"
+                    message = f"<b>Graph Type:</b> <i>{graph}</i>\n<b>Time:</b> <i>{str(formatted_now)}</i>"
                     tele_handler.send_photo(photo, {message})
             except FileNotFoundError or Exception:
                 tele_handler.send_message("Image file not found.")
@@ -294,9 +295,9 @@ if __name__ == "__main__":
         we can process with 'financial_instruments'
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Building new dataset - Please await completion message.")
+        tele_handler.send_message("<b>Building new dataset</b> - <i>Please await completion message.</i>")
         dataset_manager.DatasetManager()
-        tele_handler.send_message("Dataset has been build.")
+        tele_handler.send_message("<i>New dataset has finished building.</i>")
 
 
     @telebot.message_handler(commands=['optimize'])
@@ -308,7 +309,7 @@ if __name__ == "__main__":
         :return: None
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Initiating optimizing - Please await completion message.")
+        tele_handler.send_message("<b>Initiating optimizing</b> - <i>Please await completion message.</i>")
 
         # Resets '_reward_history' to prevent re-running from wrongly
         # appending '_reward_history' to previous attempts.
@@ -331,19 +332,19 @@ if __name__ == "__main__":
         :return: None
         """
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Initiating training - Please await completion message.")
+        tele_handler.send_message("<b>Initiating training</b> - <i>Please await completion message.</i>")
 
         reward, q_table = Trainer(c.OPTIMIZE_PARAM).train()  # reward needed only for training
 
-        tele_handler.send_message("Training done.")
+        tele_handler.send_message("<b>Training done.</b>")
         tele_handler.send_table(q_table)
-        tele_handler.send_message(f"Total reward: {reward}")
+        tele_handler.send_message(f"<b>Total reward:</b> <i>{reward}</i>")
 
         db_file = os.path.abspath(c.Q_TABLE_DB)
         database_manager.DBManager(db_file)
         q_table_db_manager = database_manager.QTableManager(db_file)
         q_table_db_manager.q_table_operation(q_table)
-        tele_handler.send_message("Updated q-table has been stored.")
+        tele_handler.send_message("<i>Updated q-table has been stored.</i>")
 
 
     @telebot.message_handler(commands=['test'])
@@ -361,14 +362,14 @@ if __name__ == "__main__":
     @telebot.message_handler(commands=['news'])
     def retrieve_news(message):
         tele_handler = telebot_manager.Notifier(telebot, message)
-        tele_handler.send_message("Retrieving news - Please await completion message.")
+        tele_handler.send_message(f"<b>Retrieving news</b> - <i>Please await completion message.</i>")
 
         news_handler = news_manager.NewsManager()
         news_handler.setUp()
-        content = news_handler.start_test(message)
+        content = news_handler.start_web_scrap()
 
         for url, message in content.items():
-            tele_handler.send_message(f"\n***{message[0].upper()}:*** \n{message[1]}\n{url}")
-        tele_handler.send_message(f"{c.ARTICLES} has been retrieved.")
+            tele_handler.send_message(f"\n<b>{message[0].upper()}:</b> \n{message[1]}\n{url}")
+        tele_handler.send_message(f"<i>{c.ARTICLES} articles has been retrieved.</i>")
 
     telebot.infinity_polling()
