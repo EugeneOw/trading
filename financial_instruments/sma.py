@@ -9,6 +9,7 @@ logging.basicConfig(
     datefmt='%d-%m-%Y %H:%M:%S'
 )
 
+
 class SMA:
     def __init__(self):
         macd_handler = macd.MACD()

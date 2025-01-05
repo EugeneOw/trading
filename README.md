@@ -36,7 +36,6 @@ for the ease of user experience and flexibility.
     ```cd trading```
 
 3. Install the required dependencies:
-    ```pip install -r requirements.txt```
 
 ---
 ## Usage
@@ -44,10 +43,7 @@ for the ease of user experience and flexibility.
     - Obtain an API key for the **Oanda API** and configure it in the project.
     - Configure the **Gemini API** for financial news scraping.
 
-2. **Run the Trading Agent:**
-
-   To start the agent, run the following script:
-   ```python agent.py```
+2. **Run the Trading Agent**
 
 3. **Telegram Bot Interaction:**
 
@@ -68,7 +64,7 @@ The agent is trained using Q-Learning, a reinforcement learning algorithm. A Q-t
 its performance over time.
 
 ### **4. Bayesian Optimization:**
-The hyper-parameters such as thresholds for technical indicators and reinforcement learning parameters (Alpha, Gamma, etc.) are optimized using the
+The hyperparameters such as thresholds for technical indicators and reinforcement learning parameters (Alpha, Gamma, etc.) are optimized using the
 Bayesian Optimization.
 
 ### **5. Selenium Web-scraping & Gemini API integration:**

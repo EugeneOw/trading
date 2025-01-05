@@ -16,7 +16,7 @@ EMA_PERIODS: list[int] = [12, 26]
 LIVE_INSTR: list[str] = ["USD_JPY,EUR_USD"]
 STATE_MAP: dict = {"Long": 0, "Short": 1, "Ignore": 2}
 
-AVAIL_INSTR: list[str] = ["MACD", "EMA", "B-Bands", "RSI"]
+AVAIL_INSTR: list[str] = ["MACD", "EMA", "SMA", "RSI"]
 AVAIL_GRAPHS: list[str] = ["Pair Plot", "Line Plot"]
 AVAIL_ACTIONS: list[str] = ["Long", "Short", "Ignore"]
 AVAIL_STATES: list[str] = ["Bullish", "Bearish", "Neutral"]
