@@ -23,7 +23,7 @@ class APIKeyExtractor:
         """
         Extracts API key from an RTF file stored somewhere.
 
-        :return: Extracted API key as a string
+        :return: Extracted an API key as a string
         :rtype: str
         """
         try:

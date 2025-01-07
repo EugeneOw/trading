@@ -1,6 +1,6 @@
 import logging
 import random
-from constants import constants
+from constants import constants as c
 
 logging.basicConfig(
     level=logging.INFO,
@@ -11,76 +11,83 @@ logging.basicConfig(
 
 class StateManager:
     def __init__(self, macd_threshold, epsilon):
-        self.macd_threshold = macd_threshold
         self.epsilon: float = epsilon
+        self.macd_threshold: float = macd_threshold
 
-        self.state_map = constants.STATE_MAP
-        self.avail_instr = constants.AVAIL_INSTR
-        self.avail_actions = constants.AVAIL_ACTIONS
-        self.ema_period_1 = constants.EMA_PERIODS[0]
-        self.ema_period_2 = constants.EMA_PERIODS[1]
+        self.macd, self.signal_line = 0, 0
+        self.ema_26, self.ema_12 = 0, 0
+        self.mid_price, self.sma, self.low_band = 0, 0, 0
+        self.rsi = 0
+
+        self.state_map = c.STATE_MAP
+        self.avail_instr = c.AVAIL_INSTR
+        self.avail_actions = c.AVAIL_ACTIONS
+
+        self.action: str = ""
+        self.instrument: int = 0
 
     @staticmethod
     def create_weights():
         """
-        Creates a list that stores equally distributed amount of weights.
+        Creates a list that stores equally distributed number of weights.
 
         :return:
-        :rtype: list[float]
+        :rtype:List[float]
         """
-        number_of_instruments = len(constants.AVAIL_INSTR)
+        number_of_instruments = len(c.AVAIL_INSTR)
         return [1/number_of_instruments]*number_of_instruments
 
     def define_state(self, curr_row, instr_weight, decay):
         """
-        Defines the state of each row. The list that contains the weights of each instrument is used to determine,
-        which instrument is best suited for this but is not updated. It is updated only later when we calculate the
+        Defines the state of each row.
+        The list that contains the weights of each instrument is used to determine
+        which instrument is best suited for this but is not updated.
+        It is updated only later when we calculate the
         reward.
 
-        :param curr_row: Contains details of each individual row
+        :param curr_row: Contains details of each row
 
-        :param instr_weight: Contains weights of each individual instrument
+        :param instr_weight: Contains weights of each instrument
         :type instr_weight: list[float]
 
-        :param decay: Contains the value to be larger than in order to select a pre-defined action
+        :param decay: Contains the value to be larger than to select a pre-defined action
         :type decay: float
 
         :return: Returns a string containing action
         :rtype: str
         """
         try:
-            macd = curr_row[constants.AVAIL_INSTR[0]]
-            signal_line = curr_row['Signal Line']
+            self.macd = curr_row["MACD"]
+            self.signal_line = curr_row['Signal Line']
 
-            ema_12 = curr_row[f'{constants.AVAIL_INSTR[1]} {self.ema_period_1}']
-            ema_26 = curr_row[f'{constants.AVAIL_INSTR[1]} {self.ema_period_2}']
+            self.ema_12 = curr_row[f'{"EMA"} {c.EMA_PERIODS[0]}']
+            self.ema_26 = curr_row[f'{"EMA"} {c.EMA_PERIODS[1]}']
 
-            mid_price = curr_row['Mid Price']
-            sma = curr_row['SMA']
-            low_band = curr_row['Lower Band']
+            self.sma = curr_row['SMA']
+            self.mid_price = curr_row['Mid Price']
+            self.low_band = curr_row['Lower Band']
 
-            rsi = curr_row['RSI']
+            self.rsi = curr_row['RSI']
 
             # Selects state randomly
             if random.uniform(0, 1) < decay:
-                return random.choice([self.macd_state(macd, signal_line),
-                                      self.ema_state(ema_12, ema_26),
-                                      self.sma_state(mid_price, sma, low_band),
-                                      self.rsi_state(rsi)])
+                random.choice([self.macd_state(), self.ema_state(), self.sma_state(), self.rsi_state()])
             else:
                 if random.uniform(0, 1) < 0.1:
                     # 10% chance of selecting the least weighted instrument.
                     highest_score = instr_weight.index(min(instr_weight))
                 else:
                     highest_score = instr_weight.index(max(instr_weight))
+
                 if highest_score == 0:
-                    return self.macd_state(macd, signal_line)
+                    self.macd_state()
                 elif highest_score == 1:
-                    return self.ema_state(ema_12, ema_26)
+                    self.ema_state()
                 elif highest_score == 2:
-                    return self.sma_state(mid_price, sma, low_band)
+                    self.sma_state()
                 else:
-                    return self.rsi_state(rsi)
+                    self.rsi_state()
+            return self.action, self.instrument
 
         except KeyError:
             logging.error("Row doesn't exists")
@@ -90,102 +97,50 @@ class StateManager:
             logging.error("Unexpected error: ", e)
             raise
 
-    def macd_state(self, macd, signal_line):
+    def macd_state(self):
         """
-        Performs calculations and determines if current row belongs to Buy or Sell state.
-
-        :param macd: MACD value of row
-        :type macd: float
-
-        :param signal_line: Signal line value of row
-        :type signal_line: float
-
-        :return: Returns 2 parameters - Action to be taken (Buy/Sell) and instrument used.
-        :return: action: Action to be taken
-        :rtype: action: int
-
-        :return: instrument: Instrument used to perform this deduction.
-        :rtype: instrument: int
+        Performs calculations and determines if the current row belongs to Buy or Sell state.
         """
-        instrument = self.avail_instr.index("MACD")
-        if (macd > signal_line) and (macd - signal_line) < self.macd_threshold:
-            action = self.state_map[self.avail_actions[0]]
-        elif (macd < signal_line) and (signal_line - macd) < self.macd_threshold:
-            action = self.state_map[self.avail_actions[1]]
+        self.instrument = self.avail_instr.index("MACD")
+        if (self.macd > self.signal_line) and (self.macd - self.signal_line) < self.macd_threshold:
+            self.action = self.state_map[self.avail_actions[0]]
+        elif (self.macd < self.signal_line) and (self.signal_line - self.macd) < self.macd_threshold:
+            self.action = self.state_map[self.avail_actions[1]]
         else:
-            action = self.state_map[self.avail_actions[2]]
-        return action, instrument
+            self.action = self.state_map[self.avail_actions[2]]
 
-    def ema_state(self, ema_12, ema_26):
+    def ema_state(self):
         """
-        Performs calculations and determines if current row belongs to Buy or Sell state.
-
-        :param ema_12: MACD value of row
-        :type ema_12: float
-
-        :param ema_26: Signal line value of row
-        :type ema_26: float
-
-        :return: Returns 2 parameters - Action to be taken (Buy/Sell) and instrument used.
-        :return: action: Action to be taken
-        :rtype: action: int
-
-        :return: instrument: Instrument used to perform this deduction.
-        :rtype: instrument: int
+        Performs calculations and determines if the current row belongs to Buy or Sell state.
         """
-        instrument = self.avail_instr.index("EMA")
-        if (ema_12 - ema_26) > 0:
-            action = self.state_map[self.avail_actions[0]]
+        self.instrument = self.avail_instr.index("EMA")
+        if (self.ema_12 - self.ema_26) > 0:
+            self.action = self.state_map[self.avail_actions[0]]
+        elif (self.ema_12 - self.ema_26) < 0:
+            self.action = self.state_map[self.avail_actions[1]]
         else:
-            action = self.state_map[self.avail_actions[1]]
-        return action, instrument
+            self.action = self.state_map[self.avail_actions[2]]
 
-    def sma_state(self, mid_price, sma, low_band):
+    def sma_state(self,):
         """
-        Performs calculation and determines if current row belongs to Buy or Sell state.
-        :param mid_price: Middle price
-        :type mid_price: float
-
-        :param sma: Simple moving average
-        :type sma: float
-
-        :param upp_band: Upper band
-        :type upp_band: float
-
-        :param low_band: Lower band
-        :type low_band: float
-
-        :return: Returns 2 parameters - Action to be taken (Buy/Sell) and instrument used.
-        :return: action: Action to be taken
-        :rtype: action: int
-
-        :return: instrument: Instrument used to perform this deduction.
-        :rtype: instrument: int
+        Performs calculation and determines if the current row belongs to Buy or Sell state.
         """
-        instrument = self.avail_instr.index("SMA")
-        if mid_price > sma and mid_price > low_band:
-            action = self.state_map[self.avail_actions[0]]
+        self.instrument = self.avail_instr.index("SMA")
+        if self.mid_price > self.sma and self.mid_price > self.low_band:
+            self.action = self.state_map[self.avail_actions[0]]
+        elif self.mid_price < self.sma and self.mid_price < self.low_band:
+            self.action = self.state_map[self.avail_actions[1]]
         else:
-            action = self.state_map[self.avail_actions[1]]
-        return action, instrument
+            self.action = self.state_map[self.avail_actions[2]]
 
-    def rsi_state(self, rsi):
+    def rsi_state(self):
         """
-        Performs calculation and determines if current row belongs to Buy or Sell state.
-
-        :param rsi: Relative strength index
-        :type rsi: float
-
-        :return: Returns 2 parameters - Action to be taken (Buy/Sell) and instrument used.
-        :return: action: Action to be taken
-        :rtype: action: int
-
-        :return: instrument: Instrument used to perform this deduction.
-        :rtype: instrument: int
+        Performs calculation and determines if the current row belongs to Buy or Sell state.
         """
-        instrument = self.avail_instr.index("RSI")
-        if rsi < 30:
-            action = self.state_map[self.avail_actions[0]]
+        self.instrument = self.avail_instr.index("RSI")
+        if self.rsi < 30:
+            self.action = self.state_map[self.avail_actions[0]]
+        elif self.rsi > 30:
+            self.action = self.state_map[self.avail_actions[1]]
         else:
-            action = self.state_map[self.avail_actions[1]]
-        return action, instrument
+            self.action = self.state_map[self.avail_actions[2]]

@@ -56,7 +56,7 @@ class Notifier(TeleBotManager):
 
     def send_message(self, message):
         """
-        Sends message to specific chat using Telegram bot.
+        Sends a message to specific chat using Telegram bot.
 
         :param message: The message to be sent
 
@@ -66,7 +66,7 @@ class Notifier(TeleBotManager):
 
     def send_photo(self, photo, message):
         """
-        Sends photo to the specific chat using Telegram bot.
+        Sends a photo to the specific chat using Telegram bot.
 
         :param photo: The image to be sent
         :param message: The message to be sent

@@ -13,7 +13,7 @@ logging.basicConfig(
 class RSI:
     def __init__(self):
         sma_handler = sma.SMA()
-        self.dataset = sma_handler.calculate_bbands()
+        self.dataset = sma_handler.calculate_bollinger_bands()
 
     def calculate_rsi(self):
         try:
@@ -31,5 +31,3 @@ class RSI:
             logging.error("Empty file or no data to load.")
         except ValueError:
             logging.error(f"Error during dataset calculation.")
-
-

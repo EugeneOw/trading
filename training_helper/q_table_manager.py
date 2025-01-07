@@ -18,7 +18,7 @@ class QTableManager:
     @staticmethod
     def create_q_table():
         """
-        Creates an empty (all zeroes) q_table of size (available states) by (available actions).
+        Creates an empty (all-zeroes) q_table of size (available states) by (available actions).
 
         :return: numpy.array
         """
@@ -28,10 +28,10 @@ class QTableManager:
         """
         Updates the q_table based on q-learning formula.
 
-        :param q_table: Updates q_table based on q-learning update rule
+        :param q_table: Updates q_table based on a q-learning update rule
         :type q_table: numpy array
 
-        :param current_state_index: Current row's state as an index (based on constants.STATE_MAP)
+        :param current_state_index: Current row's state as an index (based-on-constants.STATE_MAP)
         :type current_state_index: int
 
         :param next_state_index: Next row's state as an index
@@ -40,10 +40,10 @@ class QTableManager:
         :param action_index: Current action as an index (based on constants.AVAILABLE_ACTIONS)
         :type action_index: int
 
-        :param reward: Reward (Positive or negative) based on whether correct choice was made
+        :param reward: Reward (Positive or negative) based on whether the correct choice was made to
         :type reward: float
 
-        :param q_table: Updated q_table based on q-learning formula
+        :param q_table: Updated q_table based on a q-learning formula
         :rtype q_table: numpy array
         """
         try:

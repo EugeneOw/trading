@@ -1,5 +1,4 @@
 import numpy as np
-import logging
 from constants import constants as c
 
 
@@ -35,16 +34,16 @@ class CalculateReward:
         :param curr_instr: Instrument selected for current row
         :type curr_instr: int
 
-        :return: return positive or negative profit
+        :return: Return positive or negative-profit
         :rtype: float
 
         :param eps: Contains the number of which eps the training is currently at.
-        :type eps: int
+        :type eps: Int
 
         :param row_idx: Contains the idx of the dataframe at which the training is currently at.
-        :type row_idx: int
+        :type row_idx: Int
 
-        :return: instr_weight: Contains list of weights allocated to instr
+        :return: instr_weight: Contains a list of weights allocated to instr
         :rtype: instr_weight: list[float]
         """
 
@@ -73,13 +72,14 @@ class CalculateReward:
 
     def dynamic_alpha(self, eps, row_idx):
         """
-        Calculates the dynamic alpha based on eps and call. Utilizes the sigmoid growth.
+        Calculates the dynamic alpha based on eps and call.
+        Uses the sigmoid growth.
         
         :param eps: Contains the number of which eps the training is currently at.
-        :type eps: int
+        :type eps: Int
 
         :param row_idx: Contains the idx of the dataframe at which the training is currently at.
-        :type row_idx: int
+        :type row_idx: Int
 
         :return: Returns dynamic alpha for calculating reward/punishment
         """
@@ -100,14 +100,14 @@ class CalculateReward:
         :param curr_instr: Currently selected instrument
         :type curr_instr: int
 
-        :param outcome: Outcome of action, right (outcome: 1) and wrong (outcome:0)
+        :param outcome: Outcome of action, right (outcome: 1) and wrong (outcome: 0)
         :type outcome: int
 
         :param eps: Contains the number of which eps the training is currently at.
-        :type eps: int
+        :type eps: Int
 
         :param row_idx: Contains the idx of the dataframe at which the training is currently at.
-        :type row_idx: int
+        :type row_idx: Int
 
         :return: instr_weight: List containing all the weights allocated to instrument
         :rtype: list[float]
@@ -134,9 +134,9 @@ class CalculateReward:
     @property
     def split_weight(self):
         """
-        Returns the weight split among all but 1 instr.
+        Returns the weight split among all but one instr.
         
-        :return: split weight 
+        :return: Split weight
         :rtype: float
         """
         return self.const / (len(c.AVAIL_INSTR) - 1)
@@ -147,7 +147,7 @@ class CalculateReward:
 
     def punish_main_instr(self):
         """
-        Punishes main instrument for selecting wrong outcome.
+        Punishes the main instrument for selecting a wrong outcome.
         
         :return: None 
         """
@@ -155,8 +155,8 @@ class CalculateReward:
 
     def reward_other_instr(self):
         """
-        When punishing main instrument, the rest will be rewarded. This is to keep a fair
-        balance such that instruments that aren't affected have a higher chance of being
+        When punishing the main instrument, the rest will be rewarded.
+        This is to keep a fair balance such that instruments that aren't affected have a higher chance of being
         selected the next time. Furthermore, if instruments are constantly punished, and
         only rewarded when correct. They tend to reach zero quickly, as the initial phase
         is largely used to make assumptions and learning
@@ -172,7 +172,7 @@ class CalculateReward:
 
     def reward_main_instr(self):
         """
-        Reward main instrument for selecting correct outcome.
+        Reward the main instrument for selecting a correct outcome.
 
         :return: None
         """
@@ -185,4 +185,3 @@ class CalculateReward:
         ]
         for idx in remaining_instr:
             self.instr_weight[idx] -= self.split_const
-

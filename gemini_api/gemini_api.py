@@ -34,4 +34,3 @@ class GeminiAPI:
         """
         response = self.model.generate_content(f"{url_link} {c.PROMPT}")
         return response
-

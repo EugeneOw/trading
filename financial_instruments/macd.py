@@ -21,7 +21,7 @@ class MACD:
         """
         Performs Moving average convergence/divergence calculation.
 
-        :return: Returns an updated csv file with 1 new row (MACD).
+        :return: Returns an updated csv file with one new row (MACD).
         :rtype: self.dataset: Dataframe
         """
         try:

@@ -20,12 +20,13 @@ class FilePathManager(DBManager):
 
     def fetch_file_path(self, file_id):
         """
-        Attempts to fetch file path from database. But creates if it doesn't exist.
+        Attempts to fetch a file path from a database.
+        But creates if it doesn't exist.
 
         :param: file_id: Contains the index of the file's path in the database rows.
         :type: file_id: int
 
-        :return: stored_path
+        :return: Stored_path
         :rtype: str
         """
         with sqlite3.connect(self.db_file) as conn:
@@ -77,9 +78,10 @@ class QTableManager(DBManager):
             conn.commit()
 
     def update_q_table(self, serialized_q_table):
-        """Updates q_table (database) with updated q-table.
+        """
+        Updates q_table (database) with updated q-table.
 
-        :param serialized_q_table: serialized q-table
+        :param serialized_q_table: Serialized q-table
         :return None
         """
         with sqlite3.connect(self.db_file) as conn:

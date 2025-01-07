@@ -31,6 +31,9 @@ class TrainingAgent:
     omit_rows: int = c.OMIT_ROWS
     parameters: list[tuple] = c.PARAM_TRAINING
 
+    total_decay_lst: list[float] = []
+    random_uniform_lst: list[float] = []
+
     def __init__(self):
         self.state_to_index = self.create_state_map
         self.dataset = pd.read_csv(self.get_dataset)
@@ -40,7 +43,8 @@ class TrainingAgent:
         self.iter_values = TrainingAgent.iter_values
         self.reward_history = TrainingAgent.reward_hist
 
-        print("Initialize")
+        self.total_decay_lst = TrainingAgent.total_decay_lst
+        self.random_uniform_lst = TrainingAgent.random_uniform_lst
 
     @property
     def get_dataset(self):
@@ -91,13 +95,12 @@ class TrainingAgent:
         Evaluates the objective function for a given set of parameters.
 
         :param parameters: A list of parameters to evaluate
-        :type parameters: list
 
         :return: The negative reward as a measure of the objective function's performance
         :rtype: float
         """
         training_agent = Trainer(parameters)
-        reward, q_table = training_agent.train()  # q_table needed only for optimize
+        reward, q_table = training_agent.train()  # q_table needed only for optimizing
         return -reward
 
     def build_graphs(self, result):
@@ -113,7 +116,8 @@ class TrainingAgent:
         pair_plot_handler.build_pair_plot(self.iter_values)
 
         line_plot_handler = training_agent.get_line_plot_handler
-        line_plot_handler.build_line_plot(self.reward_history, self.episodes, self.calls)
+        line_plot_handler.build_reward_plot(self.reward_history, self.episodes, self.calls)
+        line_plot_handler.build_decay_plot(self.total_decay_lst, self.random_uniform_lst)
 
     @staticmethod
     def review_summary(tele_handler, best_params):
@@ -150,7 +154,7 @@ class Trainer(TrainingAgent):
         super().__init__()
         [self.alpha, self.gamma, self.decay, self.macd_threshold, self.max_grad, self.scale_fac, self.grad, self.mid] = parameters
 
-        self.next_instr: int = 0  # Contains instrument used to determine next row's state (Bull/Bearish)
+        self.next_instr: int = 0  # Contains an instrument used to determine next row's state (Bull/Bearish)
         self.current_instr: int = 0
 
         self.episode: int = 0
@@ -169,7 +173,7 @@ class Trainer(TrainingAgent):
         self.next_state_idx: int = 0
         self.next_instr: int = 0
 
-        self.total_decay: float = 0  # Not same as 'decay' which is a constant used to calculate 'total_decay'
+        self.total_decay: float = 0  # Different from 'decay' which is a constant used to calculate 'total_decay'
 
         self.state_handler = state_manager.StateManager(self.macd_threshold, self.decay)
         self.instr_weight = self.state_handler.create_weights()
@@ -194,7 +198,7 @@ class Trainer(TrainingAgent):
             - Updates the Q-table using the calculated reward(reward)
             - Tracks the cumulative reward for the episode
 
-        After completing all episodes, it stores the parameters pair for plotting.
+        After completing all episodes, it stores the parameter pair for plotting.
 
         :return: The total reward accumulated over all episodes.
         """
@@ -230,7 +234,7 @@ class Trainer(TrainingAgent):
 
     def get_curr_state(self):
         if len(self.prev_row) != 0 and self.prev_state_idx is not None:
-            # Since previous row has already been identified, we don't have to look through data set again.
+            # Since the previous row has already been identified, we don't have to look through data set again.
             self.curr_row, self.curr_state_idx = self.prev_row, self.prev_state_idx
             self.current_instr = self.next_instr
 
@@ -248,29 +252,31 @@ class Trainer(TrainingAgent):
         Selects next course of action based on a decaying effect that is similar to an exp ** -x
         :return: c.AVAIL_ACTIONS[action_idx]:
         """
-        self.total_decay = self.calc_total_decay
-        if random.uniform(0, 1) < self.decay:
+        self.calc_total_decay()
+        random_uniform = random.uniform(0, 1)
+        self.random_uniform_lst.append(random_uniform)
+        if random_uniform < self.total_decay:
             length_actions = range(len(c.AVAIL_ACTIONS))
             return random.choice(length_actions)
         else:
-            if random.uniform(0, 1) < 0.1:  # 10% to select wrong value
+            if random_uniform < 0.1:  # 10% to select the wrong value
                 return np.argmin(self.q_table[self.curr_state_idx])
             else:
                 return np.argmax(self.q_table[self.curr_state_idx])
 
-    @property
     def calc_total_decay(self):
         constant = self.decay
         current_iteration = (self.row_idx + 1) * (self.episode + 1)
         total_iterations = self.length_of_dataset * self.episodes
-        return float(math.exp(-constant * (current_iteration / total_iterations)))
+        self.total_decay = float(math.exp(-constant * (current_iteration / total_iterations)))
+        self.total_decay_lst.append(self.total_decay)
 
     @property
     def get_pair_plot_handler(self):
         """
         Provides access to the pair plot handler instance.
 
-        :return: The pair plot handler object associate with this instance.
+        :return: The pair plot handler object associated with this instance.
         """
         return self.pair_plot_handler
 
@@ -279,7 +285,7 @@ class Trainer(TrainingAgent):
         """
         Provides access to the line plot handler instance.
 
-        :return: The line plot handler object associate with this instance.
+        :return: The line plot handler object associated with this instance.
         """
         return self.line_plot_handler
 
@@ -287,6 +293,7 @@ class Trainer(TrainingAgent):
 if __name__ == "__main__":
     tele_bot = telebot_manager.TeleBotManager()
     telebot = tele_bot.connect_tele_bot()
+
 
     @telebot.message_handler(commands=['build'])
     def build(message):
@@ -319,7 +326,7 @@ if __name__ == "__main__":
         training_agent = TrainingAgent()
         result, best_params = training_agent.gaussian_process(tele_handler)
 
-        # Builds graph and sends telegram message to inform completion.
+        # Builds graph and sends a telegram message to inform completion.
         training_agent.build_graphs(result)
         training_agent.review_summary(tele_handler, best_params)
 
@@ -348,16 +355,16 @@ if __name__ == "__main__":
 
 
     @telebot.message_handler(commands=['test'])
-    def test_model(message):
+    def test_model():
         """
-        Get live data from Oanda API
-        :param message: Message object containing details of the '/test' command
+        Get live data from an Oanda API
         :return: None
         """
         live_fx_handler = live_fx_data.LiveFX()
         live_fx_handler.get_stream()
-        #executor = ThreadPoolExecutor(max_workers=2)
-        #stream_data = executor.submit(live_fx_handler.get_stream())
+        # executor = ThreadPoolExecutor(max_workers=2)
+        # stream_data = executor.submit(live_fx_handler.get_stream())
+
 
     @telebot.message_handler(commands=['news'])
     def retrieve_news(message):
@@ -371,5 +378,6 @@ if __name__ == "__main__":
         for url, message in content.items():
             tele_handler.send_message(f"\n<b>{message[0].upper()}:</b> \n{message[1]}\n{url}")
         tele_handler.send_message(f"<i>{c.ARTICLES} articles has been retrieved.</i>")
+
 
     telebot.infinity_polling()

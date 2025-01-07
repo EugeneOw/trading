@@ -36,7 +36,7 @@ class DatasetManager:
     @staticmethod
     def extract_date(filename):
         """
-        Extracts the date from file name in order to sort the files by date.
+        Extracts the date from file name to sort the files by date.
 
         :param filename: File name
         :type filename: str

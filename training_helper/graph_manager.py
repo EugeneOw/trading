@@ -37,12 +37,12 @@ class PairPlotManager(GraphManager):
         training and the final reward (total_reward).
 
         :param total_reward: Contains the final reward value calculated and cumulated at the end of every call.
-        :type total_reward: float
+        :type total_reward: Float
 
         :param iter_values: Contains all parameters and final reward.
-        :type iter_values: dict
+        :type iter_values: Dict
 
-        :return: iterated_values: Returns the dictionary back to training agent to update for next cycle.
+        :return: iterated_values: Returns the dictionary to training agent to update for next cycle.
         :rtype: iterated_values: dict
         """
         try:
@@ -68,10 +68,10 @@ class PairPlotManager(GraphManager):
     def build_pair_plot(self, all_iterated_values):
         """
         Builds and saves a pair-plot diagram that shows how different parameters affect other parameters and more
-        importantly the final objective (total_reward).
+         importantly, the final objective (total_reward).
 
         :param all_iterated_values: Contains all parameters (of that call) and its final reward (total_reward).
-        :type all_iterated_values: dict
+        :type all_iterated_values: Dict
 
         :return: None
         """
@@ -93,7 +93,7 @@ class LinePlotManager(GraphManager):
     def __init__(self):
         super().__init__()
 
-    def build_line_plot(self, all_rewards, no_of_episodes, no_of_calls):
+    def build_reward_plot(self, all_rewards, no_of_episodes, no_of_calls):
         """
         Builds and saves a line plot that shows how the reward (per episode) changes as training goes on.
 
@@ -109,15 +109,37 @@ class LinePlotManager(GraphManager):
         :return: None
         """
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1),
-                 all_rewards,
+        print()
+        plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards,
                  marker='o', color='b', linestyle='-', label='Reward')
-
-        plt.title('Objective')
+        plt.title('Reward Line Graph')
         plt.xlabel('Episode')
         plt.ylabel('Objective Reward')
         plt.grid(True)
         plt.legend()
-
         file_path = self.file_path_manager.fetch_file_path(1)
-        plt.savefig(f"{file_path}/line plot.png")
+        plt.savefig(f"{file_path}/line plot (reward).png")
+
+    def build_decay_plot(self, decay, random_points):
+        """
+        Builds and saves two-line plots that show how the decay (decays exponentially) and the random_uniform (chosen randomly)
+        affects the choice of action.
+        :param decay: Decay that follows exponential decay.
+        :type decay: List[float]
+
+        :param random_points:
+        :type random_points: List[float]
+
+        :return: None
+        """
+        plt.figure(figsize=(10, 6))
+        plt.plot(decay, marker='o', color='b', linestyle='-', label='Decay', linewidth=0.01)
+        plt.scatter(range(len(random_points)), random_points, color='orange', s=1)
+        plt.title('Decay Line Graph')
+        plt.xlabel('Episodes')
+        plt.ylabel('random value / choice')
+        plt.grid(True)
+        plt.legend()
+        file_path = self.file_path_manager.fetch_file_path(1)
+        plt.savefig(f"{file_path}/line plot (decay).png")
+

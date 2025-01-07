@@ -10,7 +10,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 
 logging.basicConfig(
@@ -38,10 +38,11 @@ class NewsManager(unittest.TestCase):
 
     def start_web_scrap(self):
         """
-        Handles the web scrapping code. Enters Google website, finds search box, enters prompts and retrieves first URL link.
+        Handles the web scrapping code.
+        Enters Google website, finds search box, enters prompts and retrieves the first URL link.
 
         :return self.url_and_title: Contains a dictionary of the URL, title and Gemini-summarized message.
-        :rtype: dict
+        :rtype: Dict
         """
         try:
             while len(self.url_and_title) < self.articles:
@@ -84,9 +85,9 @@ class NewsManager(unittest.TestCase):
 
     def get_response(self):
         """
-        Gets response from Gemini API by passing URL link retrieved.
+        Gets response from a Gemini API bypassing URL link retrieved.
         :return: Returns response from Gemini API
-        :rtype: Json
+        :rtype: JSON
         """
         return self.gemini.response(self.url)
 
@@ -109,4 +110,3 @@ class NewsManager(unittest.TestCase):
         """
         self.executor.shutdown(wait=True)
         self.driver.quit()
-

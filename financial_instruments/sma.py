@@ -16,7 +16,7 @@ class SMA:
         self.dataset = macd_handler.calculate_macd()
         self.sma_periods = c.SMA_PERIODS[0]
 
-    def calculate_bbands(self):
+    def calculate_bollinger_bands(self):
         try:
             self.dataset['SMA'] = self.dataset['Mid Price'].rolling(window=self.sma_periods).mean()
             self.dataset['STD'] = self.dataset['Mid Price'].rolling(window=self.sma_periods).std()
