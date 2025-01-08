@@ -1,5 +1,6 @@
 *.db
 *.csv
-constants/*.py
+constants/constants.py
+constants/keywords.py
 database_manager/datasets/
 forex_data/dataset.csv
