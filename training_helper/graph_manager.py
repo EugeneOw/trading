@@ -22,12 +22,18 @@ class GraphManager:
 
 
 class PairPlotManager(GraphManager):
-    def __init__(self, alpha, gamma, epsilon, macd_threshold):
+    def __init__(self, alpha, gamma, epsilon,
+                 macd_margin, ema_margin, sma_margin, rsi_margin, smab_margin):
         super().__init__()
         self.alpha: float = alpha
         self.gamma: float = gamma
         self.epsilon: float = epsilon
-        self.macd_threshold: float = macd_threshold
+
+        self.macd_margin: float = macd_margin
+        self.ema_margin: float = ema_margin
+        self.sma_margin: float = sma_margin
+        self.rsi_margin: float = rsi_margin
+        self.smab_margin: float = smab_margin
 
         self.episode_reward = None
 
@@ -50,7 +56,11 @@ class PairPlotManager(GraphManager):
                 'alpha': self.alpha,
                 'gamma': self.gamma,
                 'epsilon': self.epsilon,
-                'macd': self.macd_threshold,
+                'macd margin': self.macd_margin,
+                'ema margin': self.ema_margin,
+                'sma margin': self.sma_margin,
+                'rsi margin': self.rsi_margin,
+                'smab margin': self.smab_margin,
                 'total_reward': float(total_reward)
             }.items():
 
@@ -85,7 +95,6 @@ class PairPlotManager(GraphManager):
         plt.figtext(0.5, 0.95, "", ha='center', fontsize=12, color='grey')
 
         file_path = self.file_path_manager.fetch_file_path(1)
-
         plt.savefig(f"{file_path}/pair plot.png")
 
 
@@ -109,7 +118,6 @@ class LinePlotManager(GraphManager):
         :return: None
         """
         plt.figure(figsize=(10, 6))
-        print()
         plt.plot(range(1, (no_of_episodes * no_of_calls) + 1), all_rewards,
                  marker='o', color='b', linestyle='-', label='Reward')
         plt.title('Reward Line Graph')

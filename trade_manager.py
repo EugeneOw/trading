@@ -9,7 +9,7 @@ import pandas as pd
 from skopt import Optimizer
 from datetime import datetime
 from collections import namedtuple
-from live_data import live_fx_data
+from live_data_manager import live_fx_data
 from constants import constants as c
 import dataset_manager.dataset_manager
 from news_manager import news_manager
@@ -41,7 +41,7 @@ class TrainingAgent:
         self.omit_rows = TrainingAgent.omit_rows
         self.episodes = TrainingAgent.episodes
         self.iter_values = TrainingAgent.iter_values
-        self.reward_history = TrainingAgent.reward_hist
+        self.reward_hist = TrainingAgent.reward_hist
 
         self.total_decay_lst = TrainingAgent.total_decay_lst
         self.random_uniform_lst = TrainingAgent.random_uniform_lst
@@ -116,8 +116,8 @@ class TrainingAgent:
         pair_plot_handler.build_pair_plot(self.iter_values)
 
         line_plot_handler = training_agent.get_line_plot_handler
-        line_plot_handler.build_reward_plot(self.reward_history, self.episodes, self.calls)
-        line_plot_handler.build_decay_plot(self.total_decay_lst, self.random_uniform_lst)
+        line_plot_handler.build_reward_plot(self.reward_hist, self.episodes, self.calls)
+        # line_plot_handler.build_decay_plot(self.total_decay_lst, self.random_uniform_lst)
 
     @staticmethod
     def review_summary(tele_handler, best_params):
@@ -152,7 +152,9 @@ class TrainingAgent:
 class Trainer(TrainingAgent):
     def __init__(self, parameters):
         super().__init__()
-        [self.alpha, self.gamma, self.decay, self.macd_threshold, self.max_grad, self.scale_fac, self.grad, self.mid] = parameters
+        [self.alpha, self.gamma, self.decay,
+         self.macd_margin, self.ema_margin, self.sma_margin, self.rsi_margin, self.smab_margin,
+         self.max_grad, self.scale_fac, self.grad, self.mid] = parameters
 
         self.next_instr: int = 0  # Contains an instrument used to determine next row's state (Bull/Bearish)
         self.current_instr: int = 0
@@ -163,7 +165,6 @@ class Trainer(TrainingAgent):
 
         self.curr_row: list = []
         self.curr_state_idx: int = 0
-        self.curr_instr: int = 0
 
         self.prev_row: list = []
         self.prev_state_idx = None  # Set as None, since 0 is a possible choice
@@ -175,7 +176,8 @@ class Trainer(TrainingAgent):
 
         self.total_decay: float = 0  # Different from 'decay' which is a constant used to calculate 'total_decay'
 
-        self.state_handler = state_manager.StateManager(self.macd_threshold, self.decay)
+        self.state_handler = state_manager.StateManager(self.decay,
+                                                        self.macd_margin, self.ema_margin, self.sma_margin, self.rsi_margin, self.smab_margin)
         self.instr_weight = self.state_handler.create_weights()
 
         self.reward_handler = reward_manager.CalculateReward(self.max_grad, self.scale_fac, self.grad, self.mid)
@@ -183,7 +185,8 @@ class Trainer(TrainingAgent):
         self.q_table_handler = q_table_manager.QTableManager(self.alpha, self.gamma)
         self.q_table = self.q_table_handler.create_q_table()
 
-        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.decay, self.macd_threshold)
+        self.pair_plot_handler = graph_manager.PairPlotManager(self.alpha, self.gamma, self.decay,
+                                                               self.macd_margin, self.ema_margin, self.sma_margin, self.rsi_margin, self.smab_margin)
         self.line_plot_handler = graph_manager.LinePlotManager()
 
     def train(self):
@@ -229,7 +232,7 @@ class Trainer(TrainingAgent):
             self.reward_hist.append(eps_reward)
             total_reward += eps_reward
 
-        self.iter_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward, self.iter_values)
+            self.iter_values = self.pair_plot_handler.store_parameter_pair_plot(total_reward, self.iter_values)
         return total_reward, self.q_table
 
     def get_curr_state(self):
@@ -320,7 +323,9 @@ if __name__ == "__main__":
 
         # Resets '_reward_history' to prevent re-running from wrongly
         # appending '_reward_history' to previous attempts.
-        TrainingAgent.reward_history = []
+        TrainingAgent.reward_hist.clear()
+        TrainingAgent.total_decay_lst.clear()
+        TrainingAgent.random_uniform_lst.clear()
 
         # Trains model to get most optimized parameters.
         training_agent = TrainingAgent()

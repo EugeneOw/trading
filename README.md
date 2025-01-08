@@ -40,7 +40,7 @@ for the ease of user experience and flexibility.
 ---
 ## Usage
 1. **Set Up API Keys:**
-    - Obtain an API key for the **Oanda API** and configure it in the project.
+    - Get an API key for the **Oanda API** and configure it in the project.
     - Configure the **Gemini API** for financial news scraping.
 
 2. **Run the Trading Agent**
@@ -57,11 +57,12 @@ The instrument's weights start off equally distributed but are adjusted to focus
 
 ### **2. Dynamic Decay:**
 The rewards and punishment are governed by a decay function that follows a sigmoid curve. 
-This allows for a more forgiving behavior in the earlier stages of training, but gradually reduces tolerance for errors as the model matures.
+This allows for more forgiving behavior in the earlier stages of training, but gradually reduces tolerance for errors as the model matures.
 
 ### **3. Q-Learning and Q-table:**
-The agent is trained using Q-Learning, a reinforcement learning algorithm. A Q-table is used to store state-action values (hold, long and short). Enabling the agent to make decisions based on experience while improving
-its performance over time.
+The agent is trained using Q-Learning, a reinforcement learning algorithm.
+A Q-table is used to store state-action values (hold, long and short). 
+Enabling the agent to make decisions based on experience while improving its performance over time.
 
 ### **4. Bayesian Optimization:**
 The hyperparameters such as thresholds for technical indicators and reinforcement learning parameters (Alpha, Gamma, etc.) are optimized using the
@@ -72,7 +73,7 @@ Another feature that will be developed deeper helps to retrieve real-time news (
 the Selenium web scraping. This will later affect how the agent makes trading decisions based on a Large Language Model (LLM).
 
 ### **6. Pair Plot and Line Graph Visualization:**
-The model will display pair plots to visualize parameters relationship and line graphs to visualize reward performance over time.
+The model will display pair plots to visualize parameter relationship and line graphs to visualize reward performance over time.
 
 ### **7. Technical Indicators:**
 The agent will make use of key technical indicators like:
@@ -81,6 +82,14 @@ The agent will make use of key technical indicators like:
     2. Exponential Moving Average (EMA) 12 & 26
     3. Relative Strength Index (RSI)
     4. Moving Average Convergence Divergence (MACD)
+
+### **8. Dynamic Margin Adjustment Model:**
+This adaptable framework improves trading strategies by incorporating a margin/threshold that dynamically adjusts according to the volatility of key
+indicators (e.g., MACD, EMA, etc.).
+Traditional trading strategies can be too rigid, often relying on simple comparisons like “MACD > Signal Line” to 
+signal bearish trends.
+By introducing a margin, we enable Bayesian Optimization to determine the optimal margin, maximizing potential rewards.
+
 ---
 
 ## Example output: 
@@ -103,4 +112,4 @@ Contributions are welcome! If you want to contribute, feel free to fork the repo
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License—see the [LICENSE](LICENSE) file for details.

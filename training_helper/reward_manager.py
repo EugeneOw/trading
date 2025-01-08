@@ -122,13 +122,12 @@ class CalculateReward:
 
         self.split_const = self.split_weight
 
-        if outcome == 0:
+        if outcome == 0:  # Chose wrong action
             self.reward_other_instr()
             self.punish_main_instr()
         else:
             self.reward_main_instr()
             self.punish_other_instr()
-
         return instr_weight
 
     @property
